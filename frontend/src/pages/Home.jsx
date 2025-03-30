@@ -10,7 +10,7 @@ const Home = () => {
   const { isAuthenticated } = useAuth();
 
   return (
-    <div className="bg-dark">
+    <div className="bg-[#131313]">
       <LandingNav />
       <Hero />
       <Features />

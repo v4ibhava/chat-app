@@ -15,7 +15,7 @@ const Features = () => {
         </div>
         <div className="space-y-8 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-12 md:space-y-0">
           <div>
-            <div className="flex justify-center items-center mb-4 w-10 h-10 rounded-full bg-primarySecond lg:h-12 lg:w-12 dark:bg-primary-900">
+            <div className="flex justify-center items-center mb-4 w-10 h-10 rounded-full bg-[#6B8AFD] lg:h-12 lg:w-12 dark:bg-primary-900">
               <svg
                 className="w-5 h-5 text-white lg:w-6 lg:h-6 "
                 fill="currentColor"
@@ -39,7 +39,7 @@ const Features = () => {
             </p>
           </div>
           <div>
-            <div className="flex justify-center items-center mb-4 w-10 h-10 rounded-full bg-primarySecond lg:h-12 lg:w-12 dark:bg-primary-900">
+            <div className="flex justify-center items-center mb-4 w-10 h-10 rounded-full bg-[#6B8AFD] lg:h-12 lg:w-12 dark:bg-primary-900">
               <svg
                 className="w-5 h-5 text-white lg:w-6 lg:h-6 "
                 fill="currentColor"
@@ -56,7 +56,7 @@ const Features = () => {
             </p>
           </div>
           <div>
-            <div className="flex justify-center items-center mb-4 w-10 h-10 rounded-full bg-primarySecond lg:h-12 lg:w-12 dark:bg-primary-900">
+            <div className="flex justify-center items-center mb-4 w-10 h-10 rounded-full bg-[#6B8AFD] lg:h-12 lg:w-12 dark:bg-primary-900">
               <svg
                 className="w-5 h-5 text-white lg:w-6 lg:h-6 "
                 fill="currentColor"
@@ -80,7 +80,7 @@ const Features = () => {
             </p>
           </div>
           <div>
-            <div className="flex justify-center items-center mb-4 w-10 h-10 rounded-full bg-primarySecond lg:h-12 lg:w-12 dark:bg-primary-900">
+            <div className="flex justify-center items-center mb-4 w-10 h-10 rounded-full bg-[#6B8AFD] lg:h-12 lg:w-12 dark:bg-primary-900">
               <svg
                 className="w-5 h-5 text-white lg:w-6 lg:h-6 "
                 fill="currentColor"
@@ -102,7 +102,7 @@ const Features = () => {
             </p>
           </div>
           <div>
-            <div className="flex justify-center items-center mb-4 w-10 h-10 rounded-full bg-primarySecond lg:h-12 lg:w-12 dark:bg-primary-900">
+            <div className="flex justify-center items-center mb-4 w-10 h-10 rounded-full bg-[#6B8AFD] lg:h-12 lg:w-12 dark:bg-primary-900">
               <svg
                 className="w-5 h-5 text-white lg:w-6 lg:h-6 "
                 fill="currentColor"
@@ -121,7 +121,7 @@ const Features = () => {
             </p>
           </div>
           <div>
-            <div className="flex justify-center items-center mb-4 w-10 h-10 rounded-full bg-primarySecond lg:h-12 lg:w-12 dark:bg-primary-900">
+            <div className="flex justify-center items-center mb-4 w-10 h-10 rounded-full bg-[#6B8AFD] lg:h-12 lg:w-12 dark:bg-primary-900">
               <svg
                 className="w-5 h-5 text-white lg:w-6 lg:h-6 "
                 fill="currentColor"

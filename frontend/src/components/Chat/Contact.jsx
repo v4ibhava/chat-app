@@ -14,8 +14,8 @@ const Contact = ({
     <li
       key={userId}
       className={`${
-        selectedUserId === userId ? "bg-primary" : ""
-      } capitalize py-2 lg:py-3 px-2 lg:px-5  rounded-[1.3rem]  border-gray-300 hover:bg-primary flex flex-col lg:flex-row items-center gap-1 my-1.5 lg:gap-4 font-medium hover:cursor-pointer lg:my-3 text-white `}
+        selectedUserId === userId ? "bg-[#3f4654]" : ""
+      } capitalize py-2 lg:py-3 px-2 lg:px-5  rounded-[1.3rem]  border-gray-300 hover:bg-[#3f4654] flex flex-col lg:flex-row items-center gap-1 my-1.5 lg:gap-4 font-medium hover:cursor-pointer lg:my-3 text-white `}
       onClick={() => {
         setSelectedUserId(userId);
         console.log(userId);

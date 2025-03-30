@@ -27,10 +27,10 @@ const ChatMessages = ({ messages, userDetails, selectedUserId }) => {
           {messages.map((message) => (
             <div
               key={message._id}
-              className={`text-white ${
+              className={`${
                 message.sender !== userDetails._id
-                  ? "bg-primary  self-start  rounded-r-2xl "
-                  : "bg-primarySecond self-end  rounded-l-2xl "
+                  ? "bg-[#3f4654]  self-start  rounded-r-2xl "
+                  : "bg-[#6B8AFD] self-end  rounded-l-2xl "
               } relative group  rounded-b-2xl px-5 py-3 `}
             >
               <div

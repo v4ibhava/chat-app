@@ -154,7 +154,7 @@ const ChatHome = () => {
     }
   }, []);
   return (
-    <div className="flex min-h-screen  bg-background ">
+    <div className="flex min-h-screen  bg-[#202329] ">
       <Nav />
       <OnlineUsersList
         onlinePeople={onlinePeople}

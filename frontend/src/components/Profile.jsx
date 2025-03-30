@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-// import Nav from "./Chat/Nav";
+import Nav from "./Chat/Nav";
 import { useProfile } from "../context/profileContext";
 import SelectAvatar from "./SelectAvatar";
 
@@ -36,9 +36,9 @@ const Profile = () => {
   },[userDetails]);
 
   return (
-    <div className="flex h-full min-h-screen bg-background">
+    <div className="flex h-full min-h-screen bg-[#202329]">
       <Nav />
-      <div className="bg-background w-[91%] flex items-center">
+      <div className="bg-[#202329] w-[91%] flex items-center">
         <div className="max-w-xl mx-auto ">
           <h2 className="mb-4 text-2xl font-bold text-white">Update Profile</h2>
           <form onSubmit={handleSubmit}>

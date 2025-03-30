@@ -35,12 +35,12 @@ const VerifyEmail = () => {
     fetchData();
   }, [id, token]);
   return (
-    <div className="bg-dark min-h-screen text-white flex justify-center items-center flex-col">
+    <div className="bg-[#131313] min-h-screen text-white flex justify-center items-center flex-col">
       {loading && (
         <div className="mb-10 flex flex-col items-center" role="status">
           <svg
             aria-hidden="true"
-            className="w-20 h-20 animate-spin fill-primarySecond"
+            className="w-20 h-20 animate-spin fill-[#6B8AFD]"
             viewBox="0 0 100 101"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
