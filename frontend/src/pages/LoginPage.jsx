@@ -94,6 +94,11 @@ const LoginPage = () => {
             </button>
           </form>
           <div className="text-center">
+            <Link to="/forgot-password" className="link link-primary text-sm">
+              Forgot password?
+            </Link>
+          </div>
+          <div className="text-center">
             <p className="text-gray-600">
               Don&apos;t have an account?{" "}
               <Link to="/signup" className="link link-primary">

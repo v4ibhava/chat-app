@@ -2,6 +2,7 @@ import { generateToken } from "../lib/utils.js";
 import User from "../models/user.model.js"
 import bcrypt from "bcryptjs"
 import cloudinary from "../lib/cloudinary.js"
+import { sendOTPEmail, sendWelcomeEmail } from "../lib/email.js"
 
 export const signup = async (req, res) => {
     const { fullName, email, password } = req.body
@@ -28,6 +29,9 @@ export const signup = async (req, res) => {
             // generate jwt token 
             generateToken(newUser._id, res)
             await newUser.save();
+
+            // Send welcome email
+            await sendWelcomeEmail(newUser.email, newUser.fullName);
 
             res.status(201).json({
                 _id: newUser._id,
@@ -104,5 +108,112 @@ export const checkAuth = (req,res) => {
     } catch (error) {
         console.log("Error in checkAuth controller", error.message)
         res.status(500).json({ message:"Internal Server Error" });
+    }
+}
+
+// Forgot Password - Send OTP
+export const forgotPassword = async (req, res) => {
+    const { email } = req.body;
+    try {
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ message: "User not found with this email" });
+        }
+
+        // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+        user.resetOTP = otp;
+        user.resetOTPExpires = otpExpires;
+        await user.save();
+
+        // Send OTP via email
+        const emailSent = await sendOTPEmail(email, otp, user.fullName);
+
+        if (emailSent) {
+            res.status(200).json({ 
+                message: "OTP sent to your email. Please check your inbox."
+            });
+        } else {
+            res.status(500).json({ 
+                message: "Failed to send OTP email. Please try again later."
+            });
+        }
+    } catch (error) {
+        console.log("Error in forgotPassword controller", error.message);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+}
+
+// Verify OTP
+export const verifyOTP = async (req, res) => {
+    const { email, otp } = req.body;
+    try {
+        if (!email || !otp) {
+            return res.status(400).json({ message: "Email and OTP are required" });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ message: "User not found" });
+        }
+
+        if (user.resetOTP !== otp) {
+            return res.status(400).json({ message: "Invalid OTP" });
+        }
+
+        if (Date.now() > user.resetOTPExpires) {
+            return res.status(400).json({ message: "OTP expired. Please request a new one" });
+        }
+
+        res.status(200).json({ message: "OTP verified successfully", token: user._id });
+    } catch (error) {
+        console.log("Error in verifyOTP controller", error.message);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+}
+
+// Reset Password
+export const resetPassword = async (req, res) => {
+    const { email, otp, newPassword } = req.body;
+    try {
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: "Password must be at least 6 characters" });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ message: "User not found" });
+        }
+
+        if (user.resetOTP !== otp) {
+            return res.status(400).json({ message: "Invalid OTP" });
+        }
+
+        if (Date.now() > user.resetOTPExpires) {
+            return res.status(400).json({ message: "OTP expired. Please request a new one" });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        user.password = hashedPassword;
+        user.resetOTP = null;
+        user.resetOTPExpires = null;
+        await user.save();
+
+        res.status(200).json({ message: "Password reset successfully" });
+    } catch (error) {
+        console.log("Error in resetPassword controller", error.message);
+        res.status(500).json({ message: "Internal Server Error" });
     }
 }
