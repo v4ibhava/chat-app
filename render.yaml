@@ -11,7 +11,7 @@ services:
       - key: PORT
         value: 10000
       - key: FRONTEND_URL
-        value: https://zync-liart.vercel.app
+        value: https://zync-git-master-fantasize-projects.vercel.app
     healthCheckPath: /health
     healthCheckInterval: 300
     autoDeploy: true

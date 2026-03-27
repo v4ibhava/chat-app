@@ -16,10 +16,9 @@ dotenv.config();
 const PORT = process.env.PORT || 5000;
 const __dirname = path.resolve();
 
-const FRONTEND_URL =
-  process.env.NODE_ENV === "production"
-    ? process.env.FRONTEND_URL
-    : "http://localhost:5173";
+const FRONTEND_URLS = process.env.NODE_ENV === "production"
+  ? [process.env.FRONTEND_URL, "https://zync-liart.vercel.app"].filter(Boolean)
+  : ["http://localhost:5173", "http://localhost:3000"];
 
 // Middleware
 app.use(express.json());
@@ -27,7 +26,13 @@ app.use(cookieParser());
 
 app.use(
   cors({
-    origin: [FRONTEND_URL],
+    origin: (origin, callback) => {
+      if (!origin || FRONTEND_URLS.includes(origin) || origin.includes("vercel.app")) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
