@@ -17,36 +17,50 @@ export const sendOTPEmail = async (email, otp, userName) => {
     const mailOptions = {
       from: `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL}>`,
       to: email,
-      subject: "Password Reset OTP - Chat App",
+      subject: "🔐 Password Reset Code - Chat App",
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #333;">Password Reset Request</h2>
-          <p style="color: #666; line-height: 1.6;">
-            Hi ${userName},
-          </p>
-          <p style="color: #666; line-height: 1.6;">
-            We received a request to reset your password. Please use the OTP below to proceed:
-          </p>
-          
-          <div style="background: #f5f5f5; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0; border-radius: 4px;">
-            <h3 style="color: #007bff; margin: 0; text-align: center; font-size: 24px; letter-spacing: 2px;">
-              ${otp}
-            </h3>
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9; border-radius: 8px;">
+          <div style="background: #007bff; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 28px;">🔐 Password Reset</h1>
           </div>
           
-          <p style="color: #999; font-size: 12px;">
-            This OTP will expire in 10 minutes.
-          </p>
-          
-          <p style="color: #666; line-height: 1.6;">
-            If you did not request this, please ignore this email.
-          </p>
-          
-          <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-          
-          <p style="color: #999; font-size: 12px; text-align: center;">
-            © 2024 Chat App. All rights reserved.
-          </p>
+          <div style="background: white; padding: 30px; border-radius: 0 0 8px 8px;">
+            <p style="color: #333; font-size: 16px; margin: 0 0 20px 0;">
+              Hi <strong>${userName}</strong>,
+            </p>
+            
+            <p style="color: #666; line-height: 1.8; margin: 0 0 20px 0;">
+              You requested to reset your password. Use the code below to create a new password:
+            </p>
+            
+            <div style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); border-radius: 8px; padding: 25px; margin: 25px 0; text-align: center;">
+              <p style="color: white; font-size: 12px; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 1px;">Your OTP Code</p>
+              <h2 style="color: white; margin: 0; font-size: 44px; letter-spacing: 5px; font-weight: bold;">
+                ${otp}
+              </h2>
+            </div>
+            
+            <p style="color: #999; font-size: 13px; text-align: center; margin: 20px 0;">
+              ⏱️ This code will expire in <strong>10 minutes</strong>
+            </p>
+            
+            <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
+              <p style="color: #856404; margin: 0; font-size: 13px;">
+                <strong>⚠️ Security Tip:</strong> Never share this code with anyone. We will never ask for your code.
+              </p>
+            </div>
+            
+            <p style="color: #666; line-height: 1.8; margin: 20px 0; font-size: 13px;">
+              If you didn't request this code, please ignore this email or <a href="${process.env.FRONTEND_URL}/contact" style="color: #007bff; text-decoration: none;">contact support</a>.
+            </p>
+            
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            
+            <div style="text-align: center; color: #999; font-size: 12px;">
+              <p style="margin: 5px 0;">Chat App Support Team</p>
+              <p style="margin: 5px 0;">© 2024 ${process.env.SMTP_FROM_NAME}. All rights reserved.</p>
+            </div>
+          </div>
         </div>
       `,
     };
@@ -66,32 +80,52 @@ export const sendWelcomeEmail = async (email, userName) => {
     const mailOptions = {
       from: `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL}>`,
       to: email,
-      subject: "Welcome to Chat App!",
+      subject: "🎉 Welcome to Chat App!",
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #333;">Welcome to Chat App!</h2>
-          <p style="color: #666; line-height: 1.6;">
-            Hi ${userName},
-          </p>
-          <p style="color: #666; line-height: 1.6;">
-            Your account has been successfully created. You can now start chatting with your friends!
-          </p>
-          
-          <div style="background: #f5f5f5; padding: 15px; margin: 20px 0; border-radius: 4px; text-align: center;">
-            <a href="${process.env.FRONTEND_URL}" style="display: inline-block; background: #007bff; color: white; padding: 10px 30px; text-decoration: none; border-radius: 4px;">
-              Go to Chat App
-            </a>
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9; border-radius: 8px;">
+          <div style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 32px;">🎉 Welcome!</h1>
+            <p style="color: #e3f2fd; margin: 10px 0 0 0; font-size: 16px;">You're officially part of Chat App</p>
           </div>
           
-          <p style="color: #666; line-height: 1.6;">
-            Happy chatting!
-          </p>
-          
-          <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-          
-          <p style="color: #999; font-size: 12px; text-align: center;">
-            © 2024 Chat App. All rights reserved.
-          </p>
+          <div style="background: white; padding: 30px; border-radius: 0 0 8px 8px;">
+            <p style="color: #333; font-size: 16px; margin: 0 0 20px 0;">
+              Hi <strong>${userName}</strong>,
+            </p>
+            
+            <p style="color: #666; line-height: 1.8; margin: 0 0 20px 0;">
+              Congratulations! Your account has been successfully created. You're now ready to connect and chat with friends.
+            </p>
+            
+            <div style="background: #e3f2fd; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0; border-radius: 4px;">
+              <p style="color: #1565c0; margin: 0; font-weight: 500;">
+                ✨ What's next?
+              </p>
+              <ul style="color: #1565c0; margin: 10px 0 0 20px; padding: 0;">
+                <li>Set up your profile picture</li>
+                <li>Start chatting with friends</li>
+                <li>Explore our amazing features</li>
+              </ul>
+            </div>
+            
+            <div style="text-align: center; margin: 25px 0;">
+              <a href="${process.env.FRONTEND_URL}" style="display: inline-block; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; padding: 14px 40px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
+                🚀 Go to Chat App
+              </a>
+            </div>
+            
+            <p style="color: #666; line-height: 1.8; margin: 25px 0; font-size: 14px;">
+              If you have any questions or need help, feel free to <a href="${process.env.FRONTEND_URL}/contact" style="color: #007bff; text-decoration: none;">contact our support team</a>.
+            </p>
+            
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            
+            <div style="text-align: center; color: #999; font-size: 12px;">
+              <p style="margin: 5px 0;">Happy chatting! 💬</p>
+              <p style="margin: 5px 0;">The Chat App Team</p>
+              <p style="margin: 10px 0 0 0;">© 2024 ${process.env.SMTP_FROM_NAME}. All rights reserved.</p>
+            </div>
+          </div>
         </div>
       `,
     };
