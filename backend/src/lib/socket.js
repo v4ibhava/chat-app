@@ -5,11 +5,17 @@ import express from "express";
 const app = express();
 const server = http.createServer(app);
 
+const FRONTEND_URL =
+  process.env.NODE_ENV === "production"
+    ? process.env.FRONTEND_URL
+    : "http://localhost:5173";
+
 const io = new Server(server, {
     cors: {
-        origin: ["http://localhost:5173"],
+        origin: FRONTEND_URL,
         credentials: true,
-    }
+    },
+    transports: ['websocket', 'polling'], // Fallback for slow connections
 });
 
 // used to store online users

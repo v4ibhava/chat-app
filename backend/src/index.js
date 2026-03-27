@@ -43,6 +43,16 @@ app.use(xss());
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 
+// Health check endpoint (for Render)
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "OK", message: "Server is running" });
+});
+
+// 404 handler for API routes
+app.use("/api", (req, res) => {
+  res.status(404).json({ message: "API endpoint not found" });
+});
+
 // Production frontend serving
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../frontend/dist")));
@@ -53,8 +63,22 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
+// Global error handler
+app.use((err, req, res, next) => {
+  const statusCode = err.statusCode || 500;
+  const message = err.message || "Internal Server Error";
+  
+  console.error(`[${new Date().toISOString()}] Error:`, err);
+  
+  res.status(statusCode).json({
+    message,
+    ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
+  });
+});
+
 // Start server AFTER DB connection
 server.listen(PORT, async () => {
-  console.log(`Running on http://localhost:${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`📝 Environment: ${process.env.NODE_ENV || "development"}`);
   await connectDB();
 });
