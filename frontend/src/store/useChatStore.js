@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { toast } from "react-hot-toast";
 import { axiosInstance } from "../lib/axios.js";
 import { useAuthStore } from "./useAuthStore";
+import { playMessageSound } from "../lib/sounds.js";
 
 export const useChatStore = create((set, get) => ({
     messages: [],
@@ -58,7 +59,10 @@ export const useChatStore = create((set, get) => ({
 
         socket.on("newMessage", (newMessage) => {
             const isMessageSentFromSelectedUser = newMessage.senderId === selectedUser._id;
-            if(!isMessageSentFromSelectedUser) return;
+            if(!isMessageSentFromSelectedUser) {
+                playMessageSound();
+                return;
+            }
             set({ messages: [...get().messages, newMessage], isTyping: false })
         });
 
