@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 import UserAvatar from './UserAvatar'
 
 const ChatHeader = () => {
-    const { selectedUser, setSelectedUser } = useChatStore()
+    const { selectedUser, setSelectedUser, p2pStatus } = useChatStore()
     const { onlineUsers } = useAuthStore()
     
     return (
@@ -17,11 +17,20 @@ const ChatHeader = () => {
                         alt={selectedUser.fullName}
                         size="lg"
                         isOnline={onlineUsers.includes(selectedUser._id)}
+                        showStatus={!selectedUser.isDeletedAccount}
                     />
                     <div>
-                        <h3 className='font-medium text-sm sm:text-base'>{selectedUser.fullName}</h3>
-                        <p className={`text-xs ${onlineUsers.includes(selectedUser._id) ? 'text-green-500' : 'text-zinc-500'}`}>
-                            {onlineUsers.includes(selectedUser._id) ? '● Online' : '○ Offline'}
+                        <h3 className='font-medium text-sm sm:text-base'>
+                            {selectedUser.isDeletedAccount ? "Deleted User" : selectedUser.fullName}
+                        </h3>
+                        <p className={`text-xs ${
+                            selectedUser.isDeletedAccount ? 'text-zinc-500' :
+                            p2pStatus === 'connected' ? 'text-green-500' :
+                            p2pStatus === 'connecting' ? 'text-amber-500' : 'text-zinc-500'
+                        }`}>
+                            {selectedUser.isDeletedAccount ? 'Account Deleted' :
+                             p2pStatus === 'connected' ? '● Connected (P2P)' :
+                             p2pStatus === 'connecting' ? '● Connecting P2P...' : '○ Offline'}
                         </p>
                     </div>
                 </div>

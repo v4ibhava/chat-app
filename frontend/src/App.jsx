@@ -26,12 +26,17 @@ const App = () => {
 
   if(isCheckingAuth && !authUser) 
     return (
-    <Loader className="flex items-center justify-center h-screen">
-      <Loader className="size-10 animate-spin"/>
-    </Loader>
+    <div className="flex items-center justify-center h-screen bg-base-100">
+      <Loader className="size-10 animate-spin text-primary"/>
+    </div>
   )
+
+  const resolvedTheme = theme === "system"
+    ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    : theme;
+
   return (
-    <div data-theme={theme}>
+    <div data-theme={resolvedTheme} className="min-h-screen">
       <Navbar />
       <Routes>
         <Route path="/" element={authUser ? <HomePage /> : <Navigate to = "/login" />} />

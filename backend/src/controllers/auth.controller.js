@@ -20,9 +20,25 @@ export const signup = async (req, res) => {
         const salt = await bcrypt.genSalt(10)
         const hashedPassword = await bcrypt.hash(password, salt)
 
+        const emailPrefix = email.split("@")[0].toLowerCase().replace(/[^a-z0-9_.]/g, "");
+        let baseUsername = emailPrefix || "user";
+        let username = baseUsername;
+        let isUnique = false;
+        let suffix = 1;
+        while (!isUnique) {
+            const existingUser = await User.findOne({ username });
+            if (!existingUser) {
+                isUnique = true;
+            } else {
+                username = `${baseUsername}${suffix}`;
+                suffix++;
+            }
+        }
+
         const newUser = new User({
             fullName,
             email,
+            username,
             password: hashedPassword
         })
         if (newUser) {
@@ -37,7 +53,9 @@ export const signup = async (req, res) => {
                 _id: newUser._id,
                 fullName: newUser.fullName,
                 email: newUser.email,
+                username: newUser.username,
                 profilePic: newUser.profilePic,
+                createdAt: newUser.createdAt,
             })
         } else {
             res.status(400).json({ message: "Invalid user data" })
@@ -66,7 +84,9 @@ export const login = async (req, res) => {
             _id: user._id,
             fullName: user.fullName,
             email: user.email,
+            username: user.username,
             profilePic: user.profilePic,
+            createdAt: user.createdAt,
         })
     } catch (error) {
         console.log("Error in login controller", error.message);
@@ -88,17 +108,83 @@ export const logout = (req, res) => {
 
 export const updateProfile = async (req, res) => {
     try {
-        const { profilePic } = req.body;
-        const userId = req.user._id
-        if (!profilePic) {
-            return res.status(400).json({ message: "Profile pic is required" })
+        const { profilePic, fullName, email, username } = req.body;
+        const userId = req.user._id;
+        
+        const updates = {};
+        
+        if (profilePic) {
+            const uploadResponse = await cloudinary.uploader.upload(profilePic);
+            updates.profilePic = uploadResponse.secure_url;
         }
-        const uploadResponse = await cloudinary.uploader.upload(profilePic)
+        
+        if (fullName !== undefined) {
+            if (!fullName || fullName.trim() === "") {
+                return res.status(400).json({ message: "Full name cannot be empty" });
+            }
+            updates.fullName = fullName.trim();
+        }
+        
+        if (email !== undefined) {
+            const trimmedEmail = email.trim();
+            if (!trimmedEmail) {
+                return res.status(400).json({ message: "Email cannot be empty" });
+            }
+            // Simple email validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(trimmedEmail)) {
+                return res.status(400).json({ message: "Invalid email format" });
+            }
+            
+            // Email is changing!
+            if (trimmedEmail !== req.user.email) {
+                const { currentPassword } = req.body;
+                if (!currentPassword) {
+                    return res.status(400).json({ message: "Current password is required to change your email" });
+                }
+                const userWithPassword = await User.findById(userId);
+                const isPasswordCorrect = await bcrypt.compare(currentPassword, userWithPassword.password);
+                if (!isPasswordCorrect) {
+                    return res.status(400).json({ message: "Incorrect password. Verification failed." });
+                }
+                
+                const existingEmailUser = await User.findOne({ email: trimmedEmail, _id: { $ne: userId } });
+                if (existingEmailUser) {
+                    return res.status(400).json({ message: "Email already in use" });
+                }
+                updates.email = trimmedEmail;
+            }
+        }
+        
+        if (username !== undefined) {
+            const trimmedUsername = username.trim().toLowerCase();
+            if (!trimmedUsername) {
+                return res.status(400).json({ message: "Username cannot be empty" });
+            }
+            // Social media username constraints: alphanumeric, underscore, dot. Length 3-20.
+            const usernameRegex = /^[a-z0-9_.]+$/;
+            if (!usernameRegex.test(trimmedUsername)) {
+                return res.status(400).json({ message: "Username can only contain letters, numbers, underscores, and periods" });
+            }
+            if (trimmedUsername.length < 3 || trimmedUsername.length > 20) {
+                return res.status(400).json({ message: "Username must be between 3 and 20 characters" });
+            }
+            const existingUsernameUser = await User.findOne({ username: trimmedUsername, _id: { $ne: userId } });
+            if (existingUsernameUser) {
+                return res.status(400).json({ message: "Username already taken" });
+            }
+            updates.username = trimmedUsername;
+        }
 
-        const updatedUser = await User.findByIdAndUpdate(userId, { profilePic: uploadResponse.secure_url }, { new: true })
-        res.status(200).json(updatedUser)
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({ message: "No update fields provided" });
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true }).select("-password");
+        res.status(200).json(updatedUser);
     } catch (error) {
-        console.log("Error in update profile:", error)
+        console.log("Error in update profile:", error);
+        res.status(500).json({ message: "Internal Server Error" });
     }
 }
 
@@ -135,9 +221,15 @@ export const forgotPassword = async (req, res) => {
         // Send OTP via email
         const emailSent = await sendOTPEmail(email, otp, user.fullName);
 
+        console.log(`\n🔑 [DEV MODE] OTP Generated for ${email}: ${otp}\n`);
+
         if (emailSent) {
             res.status(200).json({ 
                 message: "OTP sent to your email. Please check your inbox."
+            });
+        } else if (process.env.NODE_ENV === "development") {
+            res.status(200).json({ 
+                message: `[Dev Mode] OTP logged to server console: ${otp}`
             });
         } else {
             res.status(500).json({ 
@@ -214,6 +306,49 @@ export const resetPassword = async (req, res) => {
         res.status(200).json({ message: "Password reset successfully" });
     } catch (error) {
         console.log("Error in resetPassword controller", error.message);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+}
+
+// Delete Account & Info (soft-delete / anonymization)
+export const deleteAccount = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Delete profile picture from cloudinary if it exists
+        if (user.profilePic) {
+            try {
+                const parts = user.profilePic.split("/");
+                const fileName = parts.pop();
+                const publicId = fileName.split(".")[0];
+                await cloudinary.uploader.destroy(publicId);
+            } catch (cloudinaryError) {
+                console.log("Error deleting profile pic from Cloudinary:", cloudinaryError.message);
+            }
+        }
+
+        // Soft delete: clear personal info, mark as deleted
+        user.isDeletedAccount = true;
+        user.fullName = "Deleted User";
+        user.email = `deleted_${userId}@zync.com`; // Releases original email address
+        user.password = `deleted_account_placeholder_${Math.random()}`; // Prevents future logins
+        user.profilePic = "";
+        user.friendRequests = [];
+        // Keep user.friends array so their friends still see them as a contact
+        
+        await user.save();
+
+        // Clear the auth cookie
+        res.cookie("jwt", "", { maxAge: 0 });
+
+        res.status(200).json({ message: "Account and info deleted successfully" });
+    } catch (error) {
+        console.log("Error in deleteAccount controller", error.message);
         res.status(500).json({ message: "Internal Server Error" });
     }
 }

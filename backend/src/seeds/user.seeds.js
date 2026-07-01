@@ -104,8 +104,19 @@ const seedDatabase = async () => {
   try {
     await connectDB();
 
-    await User.insertMany(seedUsers);
-    console.log("Database seeded successfully");
+    // Clear existing users to avoid unique username/email conflicts on re-run
+    await User.deleteMany({});
+
+    const seedUsersWithUsernames = seedUsers.map(user => {
+      const emailPrefix = user.email.split("@")[0].toLowerCase().replace(/[^a-z0-9_.]/g, "");
+      return {
+        ...user,
+        username: emailPrefix
+      };
+    });
+
+    await User.insertMany(seedUsersWithUsernames);
+    console.log("Database seeded successfully with usernames");
   } catch (error) {
     console.error("Error seeding database:", error);
   }

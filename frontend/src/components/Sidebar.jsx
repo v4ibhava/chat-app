@@ -7,7 +7,7 @@ import { Users } from "lucide-react";
 
 const Sidebar = () => {
   const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading } = useChatStore();
-  const { onlineUsers } = useAuthStore();
+  const { onlineUsers, authUser } = useAuthStore();
   const [showOnlineOnly, setShowOnlineOnly] = useState(false);
 
   useEffect(() => {
@@ -17,6 +17,8 @@ const Sidebar = () => {
   const filteredUsers = showOnlineOnly
     ? users.filter((user) => onlineUsers.includes(user._id))
     : users;
+
+  const otherOnlineUsers = onlineUsers.filter(id => id !== authUser?._id).length;
 
   if (isUsersLoading) return <SidebarSkeleton />;
 
@@ -37,7 +39,7 @@ const Sidebar = () => {
             />
             <span className="text-sm">Online only</span>
           </label>
-          <span className="text-xs text-zinc-500">({onlineUsers.length - 1})</span>
+          <span className="text-xs text-zinc-500">({otherOnlineUsers})</span>
         </div>
       </div>
 
@@ -57,12 +59,16 @@ const Sidebar = () => {
                 alt={user.fullName}
                 size="lg"
                 isOnline={onlineUsers.includes(user._id)}
+                showStatus={!user.isDeletedAccount}
               />
 
             <div className="hidden lg:block text-left min-w-0 flex-1">
-              <div className="font-medium truncate">{user.fullName}</div>
-              <div className="text-xs text-green-500/80 truncate">
-                {onlineUsers.includes(user._id) ? "● Online" : "○ Offline"}
+              <div className="font-medium truncate">{user.isDeletedAccount ? "Deleted User" : user.fullName}</div>
+              {user.username && !user.isDeletedAccount && (
+                <div className="text-xs text-zinc-400 truncate">@{user.username}</div>
+              )}
+              <div className={`text-xs truncate ${user.isDeletedAccount ? 'text-zinc-500' : onlineUsers.includes(user._id) ? "text-green-500/80" : "text-zinc-500"}`}>
+                {user.isDeletedAccount ? "Account Deleted" : onlineUsers.includes(user._id) ? "● Online" : "○ Offline"}
               </div>
             </div>
           </button>

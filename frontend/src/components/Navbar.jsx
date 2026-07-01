@@ -56,10 +56,7 @@ const Navbar = () => {
                       <User className="w-4 h-4" />
                       <span className="hidden lg:inline">Profile</span>
                     </Link>
-                    <Link to={"/settings"} className="btn btn-sm btn-ghost gap-1">
-                      <Palette className='w-4 h-4' />
-                      <span className="hidden lg:inline">Theme</span>
-                    </Link>
+
                     <button className='btn btn-sm btn-ghost btn-circle' onClick={logout} title="Logout">
                       <LogOut className='w-4 h-4' />
                     </button>
@@ -91,13 +88,7 @@ const Navbar = () => {
               >
                 <User className="w-5 h-5" /> Profile
               </Link>
-              <Link 
-                to={"/settings"} 
-                className="flex items-center gap-3 p-2 rounded-lg hover:bg-base-200"
-                onClick={() => setShowMobileMenu(false)}
-              >
-                <Settings className="w-5 h-5" /> Settings
-              </Link>
+
               <button 
                 onClick={() => { logout(); setShowMobileMenu(false); }}
                 className="flex items-center gap-3 p-2 rounded-lg hover:bg-base-200 w-full text-left"

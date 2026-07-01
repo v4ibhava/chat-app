@@ -1,7 +1,51 @@
 @import "tailwindcss";
-@plugin "daisyui" {
-    themes: all;
-  }
+
+@theme {
+  --color-primary: var(--primary);
+  --color-primary-content: var(--primary-content);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-neutral: var(--neutral);
+  --color-neutral-content: var(--neutral-content);
+  --color-base-100: var(--base-100);
+  --color-base-200: var(--base-200);
+  --color-base-300: var(--base-300);
+  --color-base-content: var(--base-content);
+  --color-error: var(--error);
+  --color-success: var(--success);
+}
+
+:root, [data-theme="light"] {
+  color-scheme: light;
+  --primary: #0095f6; /* Instagram Blue */
+  --primary-content: #ffffff;
+  --secondary: #ff3040; /* Instagram red for notification badges/error */
+  --accent: #0095f6;
+  --neutral: #737373;
+  --neutral-content: #ffffff;
+  --base-100: #ffffff;
+  --base-200: #fafafa; /* Instagram background-color */
+  --base-300: #dbdbdb; /* Instagram border color */
+  --base-content: #262626; /* Instagram default text */
+  --error: #ed4956;
+  --success: #198754;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --primary: #0095f6; /* Instagram Blue */
+  --primary-content: #ffffff;
+  --secondary: #ff3040;
+  --accent: #0095f6;
+  --neutral: #737373;
+  --neutral-content: #ffffff;
+  --base-100: #000000; /* Pure black for Instagram Dark mode */
+  --base-200: #121212; /* Component background */
+  --base-300: #262626; /* Dark borders */
+  --base-content: #f5f5f5; /* Off-white text */
+  --error: #ed4956;
+  --success: #198754;
+}
 
 @layer utilities {
   .bg-gradient-to-br {
@@ -54,4 +98,357 @@
 
 .backdrop-blur-sm {
   backdrop-filter: blur(8px);
+}
+
+@layer base {
+  /* Set default border colors to base-300 so borders don't look white in dark mode */
+  *, ::before, ::after {
+    border-color: var(--base-300);
+  }
+
+  /* Global HTML & Body base styles */
+  html, body {
+    background-color: var(--base-100);
+    color: var(--base-content);
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+
+  /* Ensure all text-carrying elements use the correct base-content color by default */
+  h1, h2, h3, h4, h5, h6, p, span, label, a, li, input, textarea, select {
+    color: var(--base-content);
+  }
+
+  /* Core element base styles */
+  [data-theme] {
+    background-color: var(--base-100);
+    color: var(--base-content);
+    transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+  }
+
+  /* Button styles */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    height: 2.5rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    border: 1px solid transparent;
+    transition: all 200ms ease;
+    cursor: pointer;
+    user-select: none;
+    text-decoration: none;
+  }
+  .btn:hover {
+    opacity: 0.9;
+  }
+  .btn:active {
+    transform: scale(0.98);
+  }
+  .btn-primary {
+    background-color: var(--primary);
+    color: var(--primary-content);
+  }
+  .btn-primary:hover {
+    background-color: #1877f2;
+  }
+  .btn-secondary {
+    background-color: var(--base-200);
+    border-color: var(--base-300);
+    color: var(--base-content);
+  }
+  .btn-secondary:hover {
+    background-color: var(--base-300);
+  }
+  .btn-ghost {
+    background-color: transparent;
+    color: inherit;
+  }
+  .btn-ghost:hover {
+    background-color: rgba(128, 128, 128, 0.08);
+  }
+  .btn-success {
+    background-color: var(--success);
+    color: #ffffff;
+  }
+  .btn-error {
+    background-color: var(--error);
+    color: #ffffff;
+  }
+  .btn-outline {
+    background-color: transparent;
+    border-color: var(--base-300);
+    color: var(--base-content);
+  }
+  .btn-outline:hover {
+    background-color: var(--base-200);
+  }
+  .btn-error.btn-outline {
+    border-color: var(--error);
+    color: var(--error);
+  }
+  .btn-error.btn-outline:hover {
+    background-color: var(--error);
+    color: #ffffff;
+  }
+  .btn-circle {
+    border-radius: 9999px;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+  }
+  .btn-sm {
+    height: 2rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    font-size: 0.75rem;
+  }
+  .btn-sm.btn-circle {
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+  }
+  .btn-xs {
+    height: 1.5rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    font-size: 0.675rem;
+  }
+  .btn-xs.btn-circle {
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+  }
+  .btn:disabled, .btn-disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* Input styles */
+  .input {
+    display: flex;
+    align-items: center;
+    border-radius: 8px;
+    border: 1px solid var(--base-300);
+    background-color: var(--base-100);
+    color: var(--base-content);
+    height: 2.5rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    width: 100%;
+    outline: none;
+    font-size: 0.875rem;
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+  }
+  .input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px var(--primary);
+  }
+  .input-bordered, .input-border {
+    border-color: var(--base-300);
+  }
+  .input-sm {
+    height: 2rem;
+    font-size: 0.75rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  .input-md {
+    height: 2.5rem;
+    font-size: 0.875rem;
+  }
+  .input-lg {
+    height: 3.5rem;
+    font-size: 1.125rem;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  /* Label styles */
+  .label {
+    display: flex;
+    user-select: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.25rem;
+  }
+  .label-text {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--base-content);
+    opacity: 0.9;
+  }
+
+  /* Chat styles (Instagram-like messaging layout) */
+  .chat {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: end;
+    column-gap: 0.5rem;
+    row-gap: 0.125rem;
+    margin-bottom: 0.75rem;
+  }
+  .chat-start {
+    grid-template-columns: auto 1fr;
+  }
+  .chat-end {
+    grid-template-columns: 1fr auto;
+    text-align: right;
+  }
+  .chat-image {
+    grid-row: span 2;
+    align-self: end;
+  }
+  .chat-start .chat-image {
+    grid-column: 1;
+  }
+  .chat-end .chat-image {
+    grid-column: 2;
+  }
+  .chat-header {
+    grid-row: 1;
+    font-size: 0.75rem;
+    opacity: 0.5;
+  }
+  .chat-start .chat-header {
+    grid-column: 2;
+  }
+  .chat-end .chat-header {
+    grid-column: 1;
+  }
+  .chat-bubble {
+    grid-row: 2;
+    border-radius: 18px;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    max-width: 90%;
+    word-break: break-word;
+  }
+  .chat-start .chat-bubble {
+    grid-column: 2;
+    background-color: var(--base-200);
+    color: var(--base-content);
+    border-bottom-left-radius: 4px;
+    justify-self: start;
+    border: 1px solid var(--base-300);
+  }
+  .chat-end .chat-bubble {
+    grid-column: 1;
+    background-color: var(--primary);
+    color: var(--primary-content);
+    border-bottom-right-radius: 4px;
+    justify-self: end;
+  }
+
+  /* Avatar styles */
+  .avatar {
+    display: inline-flex;
+  }
+  .avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 9999px;
+  }
+
+  /* Badge styles */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+    font-size: 0.75rem;
+    height: 1.25rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .badge-primary {
+    background-color: var(--secondary);
+    color: #ffffff;
+  }
+  .badge-xs {
+    font-size: 0.625rem;
+    height: 0.875rem;
+    min-width: 0.875rem;
+    padding: 0 0.25rem;
+  }
+
+  /* Loading indicator styles */
+  .loading {
+    display: inline-block;
+  }
+  .loading-spinner {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 9999px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    animation: loading-spin 0.75s linear infinite;
+  }
+  @keyframes loading-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .loading-xs.loading-spinner {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-width: 1px;
+  }
+  .loading-sm.loading-spinner {
+    width: 1rem;
+    height: 1rem;
+    border-width: 1.5px;
+  }
+
+  .loading-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    height: 1.25rem;
+  }
+  .loading-dots::before,
+  .loading-dots::after {
+    content: "";
+    width: 0.375rem;
+    height: 0.375rem;
+    background-color: currentColor;
+    border-radius: 9999px;
+    animation: loading-dots-bounce 1.4s infinite ease-in-out both;
+  }
+  .loading-dots::before {
+    animation-delay: -0.32s;
+    box-shadow: 0.625rem 0 0 currentColor;
+  }
+  .loading-dots::after {
+    animation-delay: -0.16s;
+    margin-left: 0.625rem;
+  }
+  @keyframes loading-dots-bounce {
+    0%, 80%, 100% { 
+      transform: scale(0);
+    } 
+    40% { 
+      transform: scale(1.0);
+    }
+  }
+
+  /* Skeleton styles */
+  @keyframes pulse {
+    50% {
+      opacity: 0.4;
+    }
+  }
+  .skeleton {
+    background-color: var(--base-300);
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
 }

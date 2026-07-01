@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 5000;
 const __dirname = path.resolve();
 
 const FRONTEND_URLS = process.env.NODE_ENV === "production"
-  ? [process.env.FRONTEND_URL, "https://zync-liart.vercel.app"].filter(Boolean)
+  ? [process.env.FRONTEND_URL].filter(Boolean)
   : ["http://localhost:5173", "http://localhost:3000"];
 
 // Middleware
@@ -28,7 +28,7 @@ app.use(cookieParser());
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || FRONTEND_URLS.includes(origin) || origin.includes("vercel.app")) {
+      if (!origin || FRONTEND_URLS.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));

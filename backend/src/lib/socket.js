@@ -35,6 +35,13 @@ io.on("connection", (socket) => {
         io.emit("getOnlineUsers", Object.keys(userSocketMap));
     }
 
+    socket.on("userReconnected", (userId) => {
+        if (userId) {
+            userSocketMap[userId] = socket.id;
+            io.emit("getOnlineUsers", Object.keys(userSocketMap));
+        }
+    });
+
     socket.on("typing", ({ receiverId }) => {
         const receiverSocketId = getReceiverSocketId(receiverId);
         if (receiverSocketId) {
@@ -46,6 +53,16 @@ io.on("connection", (socket) => {
         const receiverSocketId = getReceiverSocketId(receiverId);
         if (receiverSocketId) {
             io.to(receiverSocketId).emit("stop typing", { senderId: userId });
+        }
+    });
+
+    socket.on("webrtc-signal", ({ to, signal }) => {
+        const receiverSocketId = getReceiverSocketId(to);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("webrtc-signal", {
+                from: userId,
+                signal
+            });
         }
     });
 

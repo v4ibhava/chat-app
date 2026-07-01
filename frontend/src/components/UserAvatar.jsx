@@ -1,4 +1,5 @@
 import React from 'react';
+import { DEFAULT_AVATAR } from '../constants';
 
 const UserAvatar = ({ src, alt, size = "md", isOnline = false, showStatus = true, className = "" }) => {
   const sizeClasses = {
@@ -26,9 +27,9 @@ const UserAvatar = ({ src, alt, size = "md", isOnline = false, showStatus = true
   };
 
   return (
-    <div className={`relative inline-block ${className}`}>
+    <div className={`relative inline-block rounded-full ${className}`}>
       <img
-        src={src || "/avatar.png"}
+        src={src || DEFAULT_AVATAR}
         alt={alt}
         className={`${sizeClasses[size]} object-cover rounded-full ${ringSizes[size]} ring-base-300`}
       />

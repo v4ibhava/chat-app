@@ -10,6 +10,14 @@ export const apiLimiter = rateLimit({
 
 export const authLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
-    max: 10, // 5 failed attempts per hour
+    max: 10, // 10 attempts per hour
     message: 'Too many login attempts, please try again later.'
+});
+
+export const messageLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30, // 30 messages per minute
+    message: 'Too many messages, please slow down.',
+    standardHeaders: true,
+    legacyHeaders: false,
 });

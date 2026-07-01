@@ -39,3 +39,9 @@ coverage/
 *.tgz
 *.zip
 *.tar
+
+# Gemini AI & Workspace Guides
+.gemini/
+memory.md
+codebase_memory.md
+CODE_ANALYSIS.md

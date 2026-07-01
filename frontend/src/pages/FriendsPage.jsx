@@ -119,10 +119,12 @@ const FriendsPage = () => {
             </button>
             
             <div className="flex flex-col items-center text-center">
-              <img 
-                src={selectedFriend.profilePic || "/avatar.png"} 
+              <UserAvatar
+                src={selectedFriend.profilePic} 
                 alt={selectedFriend.fullName} 
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover mb-4 ring-4 ring-base-300" 
+                size="2xl"
+                showStatus={false}
+                className="mb-4"
               />
               <h2 className="text-xl font-semibold">{selectedFriend.fullName}</h2>
               <p className="text-sm text-zinc-400 mb-2">{selectedFriend.email}</p>

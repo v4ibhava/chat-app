@@ -137,7 +137,12 @@ const SearchModal = ({ isOpen, onClose }) => {
                       isOnline={onlineUsers.includes(user._id)}
                     />
                     <div className="min-w-0">
-                      <p className="font-semibold truncate">{user.fullName}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-semibold truncate">{user.fullName}</p>
+                        {user.username && (
+                          <span className="text-xs text-zinc-400 font-normal">@{user.username}</span>
+                        )}
+                      </div>
                       <p className="text-xs text-zinc-500 truncate">{user.email}</p>
                     </div>
                   </div>

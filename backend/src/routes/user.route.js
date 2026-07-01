@@ -17,7 +17,10 @@ router.get("/search", protectRoute, async (req, res) => {
 
     const users = await User.find({
       _id: { $ne: req.user._id },
-      fullName: { $regex: q, $options: "i" }
+      $or: [
+        { fullName: { $regex: q, $options: "i" } },
+        { username: { $regex: q, $options: "i" } }
+      ]
     }).select("-password").limit(20);
 
     const usersWithStatus = users.map(user => ({

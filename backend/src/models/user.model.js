@@ -4,17 +4,23 @@ const userSchema = new mongoose.Schema(
     {
         email: {
             type: String,
-            require: true,
+            required: true,
             unique: true,
         },
         fullName: {
             type: String,
-            require: true,
-
+            required: true,
+        },
+        username: {
+            type: String,
+            unique: true,
+            sparse: true,
+            lowercase: true,
+            trim: true,
         },
         password: {
             type: String,
-            require: true,
+            required: true,
             minlength: 6,
         },
         profilePic: {
@@ -37,9 +43,16 @@ const userSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "User"
         }],
+        isDeletedAccount: {
+            type: Boolean,
+            default: false,
+        },
     },
     { timestamps: true }
 );
+
+userSchema.index({ friends: 1 });
+userSchema.index({ friendRequests: 1 });
 
 const User = mongoose.model("User", userSchema);
 
