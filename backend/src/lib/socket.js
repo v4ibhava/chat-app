@@ -1,6 +1,8 @@
 import { Server } from "socket.io";
 import http from "http";
 import express from "express";
+import User from "../models/user.model.js";
+
 
 const app = express();
 const server = http.createServer(app);
@@ -42,27 +44,53 @@ io.on("connection", (socket) => {
         }
     });
 
-    socket.on("typing", ({ receiverId }) => {
-        const receiverSocketId = getReceiverSocketId(receiverId);
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("typing", { senderId: userId });
+    socket.on("typing", async ({ receiverId }) => {
+        if (!userId) return;
+        try {
+            const user = await User.findById(userId);
+            if (user && user.friends?.some(f => f.toString() === receiverId?.toString())) {
+                const receiverSocketId = getReceiverSocketId(receiverId);
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit("typing", { senderId: userId });
+                }
+            }
+        } catch (err) {
+            console.error("Error in typing check:", err);
         }
     });
 
-    socket.on("stop typing", ({ receiverId }) => {
-        const receiverSocketId = getReceiverSocketId(receiverId);
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("stop typing", { senderId: userId });
+    socket.on("stop typing", async ({ receiverId }) => {
+        if (!userId) return;
+        try {
+            const user = await User.findById(userId);
+            if (user && user.friends?.some(f => f.toString() === receiverId?.toString())) {
+                const receiverSocketId = getReceiverSocketId(receiverId);
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit("stop typing", { senderId: userId });
+                }
+            }
+        } catch (err) {
+            console.error("Error in stop typing check:", err);
         }
     });
 
-    socket.on("webrtc-signal", ({ to, signal }) => {
-        const receiverSocketId = getReceiverSocketId(to);
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("webrtc-signal", {
-                from: userId,
-                signal
-            });
+    socket.on("webrtc-signal", async ({ to, signal }) => {
+        if (!userId) return;
+        try {
+            const user = await User.findById(userId);
+            if (user && user.friends?.some(f => f.toString() === to?.toString())) {
+                const receiverSocketId = getReceiverSocketId(to);
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit("webrtc-signal", {
+                        from: userId,
+                        signal
+                    });
+                }
+            } else {
+                console.log(`Security Block: User ${userId} tried to signal non-friend ${to}`);
+            }
+        } catch (err) {
+            console.error("Error in webrtc-signal check:", err);
         }
     });
 
