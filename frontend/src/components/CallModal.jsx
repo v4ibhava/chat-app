@@ -63,81 +63,143 @@ const CallModal = () => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/95 backdrop-blur-xl p-0 sm:p-4">
             
+            {/* Global style overrides for ripple and call screen animations */}
+            <style>{`
+                @keyframes ripple-pulse {
+                    0% {
+                        transform: scale(0.95);
+                        opacity: 0.6;
+                    }
+                    50% {
+                        opacity: 0.25;
+                    }
+                    100% {
+                        transform: scale(2.4);
+                        opacity: 0;
+                    }
+                }
+                .ripple-ring {
+                    position: absolute;
+                    width: 140px;
+                    height: 140px;
+                    border-radius: 9999px;
+                    border: 2px solid var(--ripple-color, #3b82f6);
+                    animation: ripple-pulse 2.2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+                    pointer-events: none;
+                }
+                .animate-fade-in {
+                    animation: fadeIn 0.4s ease-out forwards;
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: scale(0.98); }
+                    to { opacity: 1; transform: scale(1); }
+                }
+            `}</style>
+
             {/* Outgoing Dialing View */}
             {callState === "ringing" && (
-                <div className="w-full max-w-sm bg-base-100 border border-base-300 rounded-2xl shadow-2xl p-8 flex flex-col items-center text-center">
-                    <div className="relative mb-6">
-                        <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-                        <UserAvatar 
-                            src={activeCallUser.profilePic} 
-                            alt={activeCallUser.fullName} 
-                            size="xl"
-                        />
+                <div className="flex flex-col items-center justify-between w-full max-w-md h-[80vh] sm:h-[70vh] p-8 animate-fade-in text-white">
+                    <div className="text-center mt-4">
+                        <span className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Outgoing Call</span>
                     </div>
-                    <h3 className="text-xl font-bold mb-2">{activeCallUser.fullName}</h3>
-                    <p className="text-zinc-500 mb-8">Calling ({callType})...</p>
+
+                    {/* Concentric ripples */}
+                    <div className="relative my-auto flex items-center justify-center w-40 h-40">
+                        <div className="ripple-ring" style={{ '--ripple-color': 'rgba(59, 130, 246, 0.4)' }}></div>
+                        <div className="ripple-ring" style={{ '--ripple-color': 'rgba(59, 130, 246, 0.2)', 'animation-delay': '0.7s' }}></div>
+                        <div className="ripple-ring" style={{ '--ripple-color': 'rgba(59, 130, 246, 0.1)', 'animation-delay': '1.4s' }}></div>
+                        
+                        <div className="relative z-10 p-1 bg-zinc-900 rounded-full border border-zinc-800 shadow-2xl">
+                            <UserAvatar 
+                                src={activeCallUser.profilePic} 
+                                alt={activeCallUser.fullName} 
+                                size="2xl"
+                                showStatus={false}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="text-center mb-6">
+                        <h3 className="text-2xl font-bold tracking-tight mb-1">{activeCallUser.fullName}</h3>
+                        <p className="text-sm text-zinc-400 font-medium animate-pulse">Calling with {callType}...</p>
+                    </div>
+
                     <button 
                         onClick={endCall} 
-                        className="btn btn-circle btn-lg btn-error"
+                        className="btn btn-circle btn-lg bg-red-500 hover:bg-red-600 border-none text-white shadow-lg shadow-red-500/20 transform active:scale-95 transition-all duration-200 mb-4"
                         title="Cancel Call"
                     >
-                        <PhoneOff className="w-6 h-6 text-white" />
+                        <PhoneOff className="w-6 h-6" />
                     </button>
                 </div>
             )}
 
             {/* Incoming Call View */}
             {callState === "incoming" && (
-                <div className="w-full max-w-sm bg-base-100 border border-base-300 rounded-2xl shadow-2xl p-8 flex flex-col items-center text-center">
-                    <div className="relative mb-6">
-                        <div className="absolute inset-0 rounded-full bg-success/20 animate-pulse" />
-                        <UserAvatar 
-                            src={activeCallUser.profilePic} 
-                            alt={activeCallUser.fullName} 
-                            size="xl"
-                        />
+                <div className="flex flex-col items-center justify-between w-full max-w-md h-[85vh] sm:h-[75vh] p-8 animate-fade-in text-white">
+                    <div className="text-center mt-4">
+                        <span className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Incoming {callType} Call</span>
                     </div>
-                    <h3 className="text-xl font-bold mb-2">{activeCallUser.fullName}</h3>
-                    <p className="text-zinc-500 mb-8">Incoming {callType} call...</p>
-                    
-                    {/* Ringing Options */}
-                    <div className="flex gap-4 items-center">
-                        <button 
-                            onClick={rejectCall} 
-                            className="btn btn-circle btn-lg btn-error"
-                            title="Decline"
-                        >
-                            <PhoneOff className="w-6 h-6 text-white" />
-                        </button>
-                        
-                        <button 
-                            onClick={rejectWithBusyMessage} 
-                            className="btn btn-circle btn-lg btn-warning"
-                            title="Message: Call Later"
-                        >
-                            <MessageSquare className="w-6 h-6 text-white" />
-                        </button>
 
-                        <button 
-                            onClick={acceptCall} 
-                            className="btn btn-circle btn-lg btn-success"
-                            title="Accept"
-                        >
-                            <Phone className="w-6 h-6 text-white" />
-                        </button>
+                    {/* Concentric ripples */}
+                    <div className="relative my-auto flex items-center justify-center w-40 h-40">
+                        <div className="ripple-ring" style={{ '--ripple-color': 'rgba(16, 185, 129, 0.4)' }}></div>
+                        <div className="ripple-ring" style={{ '--ripple-color': 'rgba(16, 185, 129, 0.2)', 'animation-delay': '0.7s' }}></div>
+                        <div className="ripple-ring" style={{ '--ripple-color': 'rgba(16, 185, 129, 0.1)', 'animation-delay': '1.4s' }}></div>
+                        
+                        <div className="relative z-10 p-1 bg-zinc-900 rounded-full border border-zinc-800 shadow-2xl">
+                            <UserAvatar 
+                                src={activeCallUser.profilePic} 
+                                alt={activeCallUser.fullName} 
+                                size="2xl"
+                                showStatus={false}
+                            />
+                        </div>
                     </div>
-                    <div className="flex flex-col gap-1 mt-4 text-xs text-zinc-500">
-                        <span>Orange option declines call & sends:</span>
-                        <span className="italic">"I'm busy right now, I'll call you later."</span>
+
+                    <div className="text-center mb-6">
+                        <h3 className="text-2xl font-bold tracking-tight mb-1">{activeCallUser.fullName}</h3>
+                        <p className="text-sm text-zinc-400 font-medium animate-pulse">Incoming call...</p>
+                    </div>
+
+                    <div className="flex flex-col items-center gap-6 w-full mb-4">
+                        <div className="flex justify-center items-center gap-6">
+                            <button 
+                                onClick={rejectCall} 
+                                className="btn btn-circle btn-lg bg-red-500 hover:bg-red-600 border-none text-white shadow-lg shadow-red-500/20 transform active:scale-95 transition-all duration-200"
+                                title="Decline"
+                            >
+                                <PhoneOff className="w-6 h-6" />
+                            </button>
+                            
+                            <button 
+                                onClick={rejectWithBusyMessage} 
+                                className="btn btn-circle btn-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-amber-500 shadow-lg transform active:scale-95 transition-all duration-200"
+                                title="Decline & Reply: I'm Busy"
+                            >
+                                <MessageSquare className="w-6 h-6" />
+                            </button>
+
+                            <button 
+                                onClick={acceptCall} 
+                                className="btn btn-circle btn-lg bg-green-500 hover:bg-green-600 border-none text-white shadow-lg shadow-green-500/20 transform active:scale-95 transition-all duration-200"
+                                title="Accept"
+                            >
+                                <Phone className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <span className="text-[10px] text-zinc-500 text-center select-none max-w-xs">
+                          Tap message icon to decline & reply: <span className="italic text-zinc-400">"I'm busy right now, I'll call you later."</span>
+                        </span>
                     </div>
                 </div>
             )}
 
             {/* Connected Call Screen */}
             {callState === "connected" && (
-                <div className="relative w-full max-w-4xl h-[80vh] bg-zinc-900 rounded-2xl overflow-hidden flex flex-col shadow-2xl">
+                <div className="relative w-full h-full sm:max-w-4xl sm:h-[80vh] bg-zinc-950 sm:rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-zinc-800/60">
                     
                     {/* Media Streaming Workspace */}
                     <div className="flex-1 relative bg-black flex items-center justify-center">
@@ -158,8 +220,8 @@ const CallModal = () => {
                                     </div>
                                 )}
 
-                                {/* Local Pip Preview (Bottom-Right corner) */}
-                                <div className="absolute bottom-4 right-4 w-32 sm:w-48 aspect-video bg-zinc-800 rounded-lg overflow-hidden border-2 border-zinc-700 shadow-lg">
+                                {/* Local PiP Preview (Stacked vertically aspect-ratio on mobile) */}
+                                <div className="absolute bottom-4 right-4 w-24 aspect-[3/4] sm:w-48 sm:aspect-video bg-zinc-900 rounded-xl overflow-hidden border-2 border-zinc-700/80 shadow-2xl z-25">
                                     <video 
                                         ref={localVideoRef} 
                                         autoPlay 
@@ -168,25 +230,29 @@ const CallModal = () => {
                                         className="w-full h-full object-cover transform -scale-x-100"
                                     />
                                     {isCameraOff && (
-                                        <div className="absolute inset-0 bg-zinc-800 flex items-center justify-center text-zinc-500">
-                                            <VideoOff className="w-6 h-6" />
+                                        <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center text-zinc-600">
+                                            <VideoOff className="w-5 h-5" />
                                         </div>
                                     )}
                                 </div>
                             </>
                         ) : (
                             /* Audio Call UI */
-                            <div className="flex flex-col items-center gap-4 text-center">
-                                <div className="relative">
-                                    <div className="absolute -inset-4 rounded-full bg-primary/10 animate-pulse" />
-                                    <UserAvatar 
-                                        src={activeCallUser.profilePic} 
-                                        alt={activeCallUser.fullName} 
-                                        size="xl"
-                                    />
+                            <div className="flex flex-col items-center gap-4 text-center text-white">
+                                <div className="relative flex items-center justify-center w-36 h-36">
+                                    <div className="ripple-ring" style={{ '--ripple-color': 'rgba(139, 92, 246, 0.3)' }}></div>
+                                    <div className="ripple-ring" style={{ '--ripple-color': 'rgba(139, 92, 246, 0.1)', 'animation-delay': '1.1s' }}></div>
+                                    
+                                    <div className="relative z-10 p-1 bg-zinc-900 rounded-full border border-zinc-800 shadow-2xl">
+                                        <UserAvatar 
+                                            src={activeCallUser.profilePic} 
+                                            alt={activeCallUser.fullName} 
+                                            size="xl"
+                                        />
+                                    </div>
                                 </div>
-                                <h3 className="text-white text-2xl font-bold mt-4">{activeCallUser.fullName}</h3>
-                                <p className="text-zinc-400">Audio call in progress</p>
+                                <h3 className="text-white text-2xl font-bold mt-6">{activeCallUser.fullName}</h3>
+                                <p className="text-zinc-400 text-sm">Audio call in progress</p>
 
                                 {/* Hidden audio element to play remote voice stream */}
                                 {remoteStream && (
@@ -201,49 +267,49 @@ const CallModal = () => {
                         )}
 
                         {/* Top Info Bar (Name and Timer) */}
-                        <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none">
-                            <div className="bg-black/60 backdrop-blur border border-zinc-700 px-4 py-2 rounded-full text-white text-sm font-semibold pointer-events-auto flex items-center gap-2">
+                        <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none z-30">
+                            <div className="bg-black/60 backdrop-blur-md border border-zinc-800/80 px-4 py-2 rounded-full text-white text-sm font-semibold pointer-events-auto flex items-center gap-2">
                                 <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
                                 {activeCallUser.fullName}
                             </div>
-                            <div className="bg-black/60 backdrop-blur border border-zinc-700 px-4 py-2 rounded-full text-white text-sm font-semibold pointer-events-auto font-mono">
+                            <div className="bg-black/60 backdrop-blur-md border border-zinc-800/80 px-4 py-2 rounded-full text-white text-sm font-semibold pointer-events-auto font-mono">
                                 {formatDuration(duration)}
                             </div>
                         </div>
                     </div>
 
                     {/* Bottom Control Bar */}
-                    <div className="bg-zinc-950 p-6 flex justify-center items-center gap-6 border-t border-zinc-800">
+                    <div className="bg-zinc-950 p-6 flex justify-center items-center gap-6 border-t border-zinc-900 z-30">
                         {/* Audio Toggle */}
                         <button 
                             onClick={toggleMute} 
-                            className={`btn btn-circle btn-lg border border-zinc-700 ${
-                                isMuted ? "btn-error text-white" : "btn-ghost text-zinc-300 hover:bg-zinc-800"
+                            className={`btn btn-circle btn-lg border border-zinc-800/80 ${
+                                isMuted ? "bg-red-500 border-none text-white" : "bg-zinc-900 hover:bg-zinc-800 text-zinc-300"
                             }`}
                             title={isMuted ? "Unmute Mic" : "Mute Mic"}
                         >
-                            {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                            {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                         </button>
 
                         {/* Hang Up Button */}
                         <button 
                             onClick={endCall} 
-                            className="btn btn-circle btn-lg btn-error"
+                            className="btn btn-circle btn-lg bg-red-500 hover:bg-red-600 border-none text-white shadow-lg shadow-red-500/20 transform active:scale-95 transition-all"
                             title="End Call"
                         >
-                            <PhoneOff className="w-6 h-6 text-white" />
+                            <PhoneOff className="w-5 h-5 text-white" />
                         </button>
 
                         {/* Video Toggle (Only for Video Calls) */}
                         {callType === "video" && (
                             <button 
                                 onClick={toggleCamera} 
-                                className={`btn btn-circle btn-lg border border-zinc-700 ${
-                                    isCameraOff ? "btn-error text-white" : "btn-ghost text-zinc-300 hover:bg-zinc-800"
+                                className={`btn btn-circle btn-lg border border-zinc-800/80 ${
+                                    isCameraOff ? "bg-red-500 border-none text-white" : "bg-zinc-900 hover:bg-zinc-800 text-zinc-300"
                                 }`}
                                 title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
                             >
-                                {isCameraOff ? <VideoOff className="w-6 h-6" /> : <Video className="w-6 h-6" />}
+                                {isCameraOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
                             </button>
                         )}
                     </div>

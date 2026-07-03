@@ -71,38 +71,81 @@ const ChatContainer = () => {
                 {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
               </time>
             </div>
-            <div className='chat-bubble flex items-center gap-2.5 relative'>
-              <div className="flex-1 min-w-0">
-                {message.image && (
-                  <img src={message.image}
-                    alt="Attachment"
-                    className='max-w-[200px] h-auto rounded-lg mb-1' />
-                )}
-                {message.text && <p className="whitespace-pre-wrap">{message.text}</p>}
-                {message.fileName && (
-                  <div className="flex items-center gap-2 p-2 bg-base-300/40 rounded-lg text-xs mt-1">
-                    <span className="font-semibold truncate max-w-[150px]">{message.fileName}</span>
-                    <span className="opacity-60">({Math.round(message.fileSize / 1024)} KB)</span>
+            {message.image ? (
+              /* Premium image message layout (no blocky solid bubble) */
+              <div className="flex flex-col items-start gap-1">
+                <div className="relative rounded-2xl overflow-hidden shadow-md border border-base-300/50 hover:shadow-lg transition-shadow group/img-container max-w-[280px] sm:max-w-[360px]">
+                  <img 
+                    src={message.image} 
+                    alt="Attachment" 
+                    className="w-full h-auto object-cover max-h-[320px] rounded-2xl" 
+                  />
+                  {message.fileName && (
                     <a 
-                      href={message.image || (message.fileBlob ? URL.createObjectURL(message.fileBlob) : "#")}
+                      href={message.image}
                       download={message.fileName}
-                      className="text-primary hover:underline font-semibold"
+                      className="absolute bottom-3 right-3 p-2.5 rounded-full bg-black/60 hover:bg-black/80 text-white transition-all shadow-md flex items-center justify-center cursor-pointer"
+                      title={`Download ${message.fileName}`}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      Download
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                      </svg>
                     </a>
-                  </div>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2 max-w-full">
+                  {message.text && (
+                    <div className={`px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap ${
+                      message.senderId === authUser._id 
+                        ? "bg-primary text-primary-content rounded-tr-none" 
+                        : "bg-base-200 text-base-content rounded-tl-none"
+                    }`}>
+                      {message.text}
+                    </div>
+                  )}
+                  {message.senderId === authUser._id && (
+                    <button 
+                      onClick={() => deleteMessage(message._id)}
+                      className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1.5 rounded-full text-zinc-400 hover:text-red-500 hover:bg-base-300/80 shrink-0"
+                      title="Delete message"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Standard chat bubble for text or files */
+              <div className="chat-bubble flex items-center gap-2.5 relative">
+                <div className="flex-1 min-w-0">
+                  {message.text && <p className="whitespace-pre-wrap text-sm sm:text-base">{message.text}</p>}
+                  {message.fileName && (
+                    <div className="flex items-center gap-2.5 p-2 bg-base-300/40 rounded-xl text-xs mt-1.5 border border-base-300/30">
+                      <span className="font-semibold truncate max-w-[150px]">{message.fileName}</span>
+                      <span className="opacity-60">({Math.round(message.fileSize / 1024)} KB)</span>
+                      <a 
+                        href={message.fileBlob ? URL.createObjectURL(message.fileBlob) : "#"}
+                        download={message.fileName}
+                        className="text-primary hover:underline font-bold ml-auto shrink-0"
+                      >
+                        Download
+                      </a>
+                    </div>
+                  )}
+                </div>
+                {message.senderId === authUser._id && (
+                  <button 
+                    onClick={() => deleteMessage(message._id)}
+                    className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1.5 rounded-full text-zinc-400 hover:text-red-500 hover:bg-base-300/80 shrink-0"
+                    title="Delete message"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 )}
               </div>
-              {message.senderId === authUser._id && (
-                <button 
-                  onClick={() => deleteMessage(message._id)}
-                  className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1.5 rounded-full text-zinc-400 hover:text-red-500 hover:bg-base-300/80 shrink-0"
-                  title="Delete message"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
+            )}
           </div>
         ))}
         {isTyping && (
