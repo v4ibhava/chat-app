@@ -27,7 +27,8 @@ export const useChatStore = create((set, get) => ({
     isMessagesLoading: false,
     isTyping: false,
     p2pStatus: "offline", // "offline" | "connecting" | "connected"
-    fileProgress: null, // { fileName, progress, type: "send" | "receive" }
+    fileProgress: null, // { fileId, fileName, progress, type: "send" | "receive" }
+    activeFileTransferId: null,
     
     // Calling States
     callState: "idle", // "idle" | "ringing" | "incoming" | "connected"
@@ -324,7 +325,25 @@ export const useChatStore = create((set, get) => ({
                 receivedSize: 0
             };
             if (!isSync) {
-                set({ fileProgress: { fileName, progress: 0, type: "receive" } });
+                set({ fileProgress: { fileId, fileName, progress: 0, type: "receive" } });
+            }
+        }
+
+        if (data.type === "file-cancel") {
+            const { fileId } = data;
+            
+            // If we were receiving this file
+            if (fileTransfers[fileId]) {
+                const fileName = fileTransfers[fileId].meta.fileName;
+                delete fileTransfers[fileId];
+                set({ fileProgress: null });
+                toast.error(`File transfer of "${fileName}" was stopped by the sender.`);
+            }
+            
+            // If we were sending this file
+            if (get().activeFileTransferId === fileId) {
+                set({ activeFileTransferId: null, fileProgress: null });
+                toast.error("File transfer stopped by the receiver.");
             }
         }
     },
@@ -372,16 +391,25 @@ export const useChatStore = create((set, get) => ({
         }
 
         if (!existingMessageId) {
-            set({ fileProgress: { fileName: file.name, progress: 0, type: "send" } });
+            set({ 
+                activeFileTransferId: fileId,
+                fileProgress: { fileId, fileName: file.name, progress: 0, type: "send" } 
+            });
         }
 
         const chunkSize = 16384; // 16KB
 
         const readSlice = (o) => {
+            // Check if transfer was cancelled by user
+            if (!existingMessageId && get().activeFileTransferId !== fileId) {
+                console.log("File sending cancelled by user.");
+                return;
+            }
+
             if (dc.readyState !== "open") {
                 console.error("Data channel closed during file transfer.");
                 toast.error("Connection lost. File transfer failed.");
-                if (!existingMessageId) set({ fileProgress: null });
+                if (!existingMessageId) set({ fileProgress: null, activeFileTransferId: null });
                 return;
             }
 
@@ -409,14 +437,14 @@ export const useChatStore = create((set, get) => ({
                 } catch (err) {
                     console.error("Error sending chunk:", err);
                     toast.error("Failed to send chunk. Connection lost.");
-                    if (!existingMessageId) set({ fileProgress: null });
+                    if (!existingMessageId) set({ fileProgress: null, activeFileTransferId: null });
                     return;
                 }
 
                 const newOffset = o + chunkSize;
                 const progress = Math.min(100, Math.round((newOffset / file.size) * 100));
                 if (!existingMessageId) {
-                    set({ fileProgress: { fileName: file.name, progress, type: "send" } });
+                    set({ fileProgress: { fileId, fileName: file.name, progress, type: "send" } });
                 }
 
                 if (newOffset < file.size) {
@@ -445,7 +473,7 @@ export const useChatStore = create((set, get) => ({
                     };
                     await saveLocalMessage(localMsg);
                     if (!existingMessageId) {
-                        set({ messages: [...get().messages, localMsg], fileProgress: null });
+                        set({ messages: [...get().messages, localMsg], fileProgress: null, activeFileTransferId: null });
                     }
                 }
             };
@@ -1030,5 +1058,39 @@ export const useChatStore = create((set, get) => ({
         }
     },
 
+    cancelFileTransfer: () => {
+        const { fileProgress, selectedUser } = get();
+        if (!fileProgress) return;
+
+        const { fileId, type } = fileProgress;
+        
+        // 1. If we are the sender
+        if (type === "send") {
+            set({ activeFileTransferId: null, fileProgress: null });
+        } 
+        // 2. If we are the receiver
+        else if (type === "receive") {
+            // Clean up transfer buffer
+            delete fileTransfers[fileId];
+            set({ fileProgress: null });
+        }
+
+        // Notify the peer
+        if (selectedUser) {
+            const dc = dataChannels[selectedUser._id];
+            if (dc && dc.readyState === "open") {
+                try {
+                    dc.send(JSON.stringify({
+                        type: "file-cancel",
+                        fileId
+                    }));
+                } catch (e) {
+                    console.error("Error sending file-cancel:", e);
+                }
+            }
+        }
+        toast.success("File transfer stopped.");
+    },
+
     setSelectedUser: (selectedUser) => set({ selectedUser }),
-}));
+});

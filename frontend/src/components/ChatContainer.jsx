@@ -4,7 +4,7 @@ import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
-import { Trash2 } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { DEFAULT_AVATAR } from "../constants";
 
 const ChatContainer = () => {
@@ -165,8 +165,8 @@ const ChatContainer = () => {
         )}
         
         {fileProgress && (
-          <div className="flex items-center bg-base-200 border border-base-300 rounded-2xl p-3 max-w-sm mx-auto space-x-3 text-xs animate-slide-up">
-            <div className="animate-pulse w-2.5 h-2.5 rounded-full bg-primary"></div>
+          <div className="flex items-center bg-base-200/90 backdrop-blur border border-base-300 rounded-2xl p-3 max-w-sm mx-auto space-x-3 text-xs animate-slide-up shadow-md">
+            <div className="animate-pulse w-2.5 h-2.5 rounded-full bg-primary shrink-0"></div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold truncate">
                 {fileProgress.type === "send" ? "Sending" : "Receiving"} {fileProgress.fileName}
@@ -181,6 +181,13 @@ const ChatContainer = () => {
                 <span className="font-bold text-primary shrink-0">{fileProgress.progress}%</span>
               </div>
             </div>
+            <button 
+              onClick={() => useChatStore.getState().cancelFileTransfer()}
+              className="btn btn-xs btn-circle btn-ghost text-red-500 hover:bg-red-500/10 shrink-0"
+              title="Stop Transfer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 
