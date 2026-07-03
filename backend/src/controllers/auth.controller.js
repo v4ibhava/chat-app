@@ -96,10 +96,11 @@ export const login = async (req, res) => {
 
 export const logout = (req, res) => {
     try {
+        const isProduction = process.env.NODE_ENV === "production" || (process.env.FRONTEND_URL && process.env.FRONTEND_URL.startsWith("https"));
         res.cookie("jwt", "", {
             maxAge: 0,
-            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-            secure: process.env.NODE_ENV === "production"
+            sameSite: isProduction ? "none" : "lax",
+            secure: isProduction
         })
         res.status(200).json({ message: "Logged out successfully" });
     } catch (error) {
@@ -348,10 +349,11 @@ export const deleteAccount = async (req, res) => {
         await user.save();
 
         // Clear the auth cookie
+        const isProduction = process.env.NODE_ENV === "production" || (process.env.FRONTEND_URL && process.env.FRONTEND_URL.startsWith("https"));
         res.cookie("jwt", "", {
             maxAge: 0,
-            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-            secure: process.env.NODE_ENV === "production"
+            sameSite: isProduction ? "none" : "lax",
+            secure: isProduction
         });
 
         res.status(200).json({ message: "Account and info deleted successfully" });
