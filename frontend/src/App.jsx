@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import HomePage from './pages/HomePage';
 import SignUpPage from './pages/SignUpPage';
 import LoginPage from './pages/LoginPage';
@@ -17,6 +17,7 @@ import { Toaster } from "react-hot-toast";
 const App = () => {
   const{authUser, checkAuth ,isCheckingAuth ,onlineUsers } = useAuthStore();
   const { theme } = useThemeStore();
+  const location = useLocation();
 
   console.log({ onlineUsers })
 
@@ -36,9 +37,11 @@ const App = () => {
     ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
     : theme;
 
+  const showNavbar = !["/login", "/signup", "/forgot-password"].includes(location.pathname);
+
   return (
     <div data-theme={resolvedTheme} className="min-h-screen">
-      <Navbar />
+      {showNavbar && <Navbar />}
       <Routes>
         <Route path="/" element={authUser ? <HomePage /> : <Navigate to = "/login" />} />
         <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to="/"/>} />
