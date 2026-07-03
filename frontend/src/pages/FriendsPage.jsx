@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageCircle, UserMinus, Search, ArrowLeft, X } from 'lucide-react';
+import { MessageCircle, UserMinus, Search, ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { axiosInstance } from '../lib/axios';
 import { useNavigate } from 'react-router-dom';
@@ -8,8 +8,7 @@ import UserAvatar from '../components/UserAvatar';
 const FriendsPage = () => {
   const [friends, setFriends] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedFriend, setSelectedFriend] = useState(null);
-  const { authUser, checkAuth } = useAuthStore();
+  const { authUser, checkAuth, onlineUsers } = useAuthStore();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -26,10 +25,10 @@ const FriendsPage = () => {
   };
 
   const removeFriend = async (userId) => {
+    if (!window.confirm("Are you sure you want to remove this friend?")) return;
     try {
       await axiosInstance.post(`/users/remove-friend/${userId}`);
       setFriends(prev => prev.filter(f => f._id !== userId));
-      if (selectedFriend?._id === userId) setSelectedFriend(null);
       checkAuth();
     } catch (error) {
       console.log("Error removing friend:", error);
@@ -40,9 +39,17 @@ const FriendsPage = () => {
     friend.fullName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const formatLastActive = (dateString) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + 
+      " at " + 
+      date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <div className="h-screen pt-14">
-      <div className="max-w-2xl mx-auto p-3 sm:p-4 py-4 sm:py-6">
+      <div className="max-w-4xl mx-auto p-3 sm:p-4 py-4 sm:py-6">
         <div className="bg-base-300 rounded-xl p-4 sm:p-6">
           <div className="flex items-center gap-3 mb-4 sm:mb-6">
             <button onClick={() => navigate('/')} className="btn btn-sm btn-ghost btn-circle">
@@ -51,7 +58,7 @@ const FriendsPage = () => {
             <h1 className="text-xl sm:text-2xl font-semibold">Friends ({friends.length})</h1>
           </div>
           
-          <div className="relative mb-4">
+          <div className="relative mb-6">
             <input
               type="text"
               placeholder="Search friends..."
@@ -67,91 +74,68 @@ const FriendsPage = () => {
               {searchQuery ? "No friends found" : "No friends yet. Search and add friends to start chatting!"}
             </div>
           ) : (
-            <div className="space-y-2 sm:space-y-3 max-h-[60vh] overflow-y-auto">
-              {filteredFriends.map(friend => (
-                <div key={friend._id} className="flex items-center justify-between p-3 sm:p-4 bg-base-200 rounded-lg gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-h-[65vh] overflow-y-auto p-1">
+              {filteredFriends.map(friend => {
+                const isOnline = onlineUsers.includes(friend._id);
+                return (
                   <div 
-                    className="flex items-center gap-3 cursor-pointer flex-1 min-w-0"
-                    onClick={() => setSelectedFriend(friend)}
+                    key={friend._id} 
+                    onClick={() => navigate(`/?userId=${friend._id}`)}
+                    className="relative flex flex-col items-center p-6 bg-base-200 hover:bg-base-200/80 border border-base-100 rounded-xl transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group cursor-pointer"
                   >
-                    <UserAvatar
-                      src={friend.profilePic}
-                      alt={friend.fullName}
-                      size="lg"
-                      isOnline={false}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium truncate text-sm sm:text-base">{friend.fullName}</p>
-                      <p className="text-xs text-zinc-400 truncate">{friend.email}</p>
+                    {/* User Avatar */}
+                    <div className="relative mb-4">
+                      <UserAvatar
+                        src={friend.profilePic}
+                        alt={friend.fullName}
+                        size="xl"
+                        isOnline={isOnline}
+                        showStatus={true}
+                      />
+                    </div>
+                    
+                    {/* User Info */}
+                    <h3 className="font-semibold text-base mb-1 truncate max-w-full text-center">{friend.fullName}</h3>
+                    
+                    {/* Status Badge */}
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-zinc-400'}`} />
+                      <span className={`text-xs font-medium ${isOnline ? 'text-green-500' : 'text-zinc-500'}`}>
+                        {isOnline ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
+
+                    {/* Last Login/Active Time */}
+                    <p className="text-xs text-zinc-500 text-center mb-6 mt-auto">
+                      Last active: <span className="text-zinc-400">{formatLastActive(friend.updatedAt)}</span>
+                    </p>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-2 w-full mt-auto" onClick={(e) => e.stopPropagation()}>
+                      <button 
+                        onClick={() => navigate(`/?userId=${friend._id}`)}
+                        className="btn btn-sm btn-primary flex-1 gap-1.5"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        Chat
+                      </button>
+                      <button 
+                        onClick={() => removeFriend(friend._id)}
+                        className="btn btn-sm btn-outline btn-error btn-circle"
+                        title="Remove Friend"
+                      >
+                        <UserMinus className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex gap-1 sm:gap-2 shrink-0">
-                    <button 
-                      onClick={() => navigate(`/?userId=${friend._id}`)}
-                      className="btn btn-sm btn-primary"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      <span className="hidden sm:inline">Chat</span>
-                    </button>
-                    <button 
-                      onClick={() => setSelectedFriend(friend)}
-                      className="btn btn-sm btn-ghost btn-circle"
-                    >
-                      <UserMinus className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       </div>
-
-      {selectedFriend && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setSelectedFriend(null)} />
-          <div className="relative bg-base-100 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl p-4 sm:p-6 animate-slide-up">
-            <button 
-              onClick={() => setSelectedFriend(null)} 
-              className="absolute top-4 right-4 btn btn-sm btn-ghost btn-circle"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            
-            <div className="flex flex-col items-center text-center">
-              <UserAvatar
-                src={selectedFriend.profilePic} 
-                alt={selectedFriend.fullName} 
-                size="2xl"
-                showStatus={false}
-                className="mb-4"
-              />
-              <h2 className="text-xl font-semibold">{selectedFriend.fullName}</h2>
-              <p className="text-sm text-zinc-400 mb-2">{selectedFriend.email}</p>
-              <p className="text-xs text-green-500 flex items-center gap-1 mb-6">
-                <span className="w-2 h-2 bg-green-500 rounded-full"></span> Online
-              </p>
-              
-              <div className="flex gap-3 w-full">
-                <button 
-                  onClick={() => { navigate(`/?userId=${selectedFriend._id}`); setSelectedFriend(null); }}
-                  className="btn btn-primary flex-1"
-                >
-                  <MessageCircle className="w-4 h-4" /> Chat
-                </button>
-                <button 
-                  onClick={() => removeFriend(selectedFriend._id)}
-                  className="btn btn-error btn-outline flex-1"
-                >
-                  <UserMinus className="w-4 h-4" /> Remove
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export default FriendsPage;
+export default FriendsPage;

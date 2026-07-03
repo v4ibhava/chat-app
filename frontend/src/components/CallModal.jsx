@@ -187,6 +187,16 @@ const CallModal = () => {
                                 </div>
                                 <h3 className="text-white text-2xl font-bold mt-4">{activeCallUser.fullName}</h3>
                                 <p className="text-zinc-400">Audio call in progress</p>
+
+                                {/* Hidden audio element to play remote voice stream */}
+                                {remoteStream && (
+                                    <audio 
+                                        ref={remoteVideoRef} 
+                                        autoPlay 
+                                        playsInline 
+                                        className="hidden" 
+                                    />
+                                )}
                             </div>
                         )}
 

@@ -18,37 +18,33 @@ export const startDialTone = () => {
         
         const playDial = () => {
             if (!audioCtx || audioCtx.state === "suspended") return;
-            const osc1 = audioCtx.createOscillator();
-            const osc2 = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-
-            osc1.type = "sine";
-            osc2.type = "sine";
-            osc1.frequency.setValueAtTime(350, audioCtx.currentTime); // Standard dial tone frequency 1
-            osc2.frequency.setValueAtTime(440, audioCtx.currentTime); // Standard dial tone frequency 2
-
-            osc1.connect(gainNode);
-            osc2.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-
-            gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime); // Quiet volume
-
-            osc1.start();
-            osc2.start();
-
-            currentOscillators.push(osc1, osc2);
-
-            // Play for 1.5 seconds, then pause
-            setTimeout(() => {
-                try {
-                    osc1.stop();
-                    osc2.stop();
-                } catch (e) {}
-            }, 1500);
+            const now = audioCtx.currentTime;
+            
+            // Soft dual ping chime: G4 and B4
+            const notes = [392.00, 493.88];
+            
+            notes.forEach((freq, i) => {
+                const osc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(freq, now + i * 0.1);
+                
+                gainNode.gain.setValueAtTime(0, now + i * 0.1);
+                gainNode.gain.linearRampToValueAtTime(0.03, now + i * 0.1 + 0.05);
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.1 + 1.2);
+                
+                osc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                osc.start(now + i * 0.1);
+                osc.stop(now + i * 0.1 + 1.2);
+                currentOscillators.push(osc);
+            });
         };
 
         playDial();
-        ringInterval = setInterval(playDial, 4000); // Dial tone loop
+        ringInterval = setInterval(playDial, 3500); // Dial tone loop (every 3.5s)
     } catch (e) {
         console.error("Failed to start dial tone:", e);
     }
@@ -63,30 +59,50 @@ export const startRingTone = () => {
             if (!audioCtx || audioCtx.state === "suspended") return;
             
             const now = audioCtx.currentTime;
-            const notes = [329.63, 392.00, 523.25, 659.25]; // E5, G5, C6, E6 chime sequence
             
-            notes.forEach((freq, index) => {
+            // Warm marimba chimes: [C5, E5, G5, B5, C6, G5, A5, C6]
+            const melody = [
+                { note: 523.25, time: 0.0 },  // C5
+                { note: 659.25, time: 0.15 }, // E5
+                { note: 783.99, time: 0.3 },  // G5
+                { note: 987.77, time: 0.45 }, // B5
+                { note: 1046.50, time: 0.65 },// C6
+                { note: 783.99, time: 0.8 },  // G5
+                { note: 880.00, time: 0.95 }, // A5
+                { note: 1046.50, time: 1.1 },  // C6
+            ];
+            
+            melody.forEach(({ note, time }) => {
                 const osc = audioCtx.createOscillator();
+                const subOsc = audioCtx.createOscillator(); // Subharmonic octave below for acoustic body warmth
                 const gainNode = audioCtx.createGain();
                 
                 osc.type = "sine";
-                osc.frequency.setValueAtTime(freq, now + index * 0.15);
+                osc.frequency.setValueAtTime(note, now + time);
                 
-                gainNode.gain.setValueAtTime(0, now + index * 0.15);
-                gainNode.gain.linearRampToValueAtTime(0.08, now + index * 0.15 + 0.05);
-                gainNode.gain.exponentialRampToValueAtTime(0.0001, now + index * 0.15 + 0.5);
+                subOsc.type = "sine";
+                subOsc.frequency.setValueAtTime(note / 2, now + time);
+                
+                gainNode.gain.setValueAtTime(0, now + time);
+                gainNode.gain.linearRampToValueAtTime(0.04, now + time + 0.02);
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, now + time + 0.65);
                 
                 osc.connect(gainNode);
+                subOsc.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
                 
-                osc.start(now + index * 0.15);
-                osc.stop(now + index * 0.15 + 0.5);
-                currentOscillators.push(osc);
+                osc.start(now + time);
+                subOsc.start(now + time);
+                
+                osc.stop(now + time + 0.65);
+                subOsc.stop(now + time + 0.65);
+                
+                currentOscillators.push(osc, subOsc);
             });
         };
 
         playRing();
-        ringInterval = setInterval(playRing, 2500); // Ringtone loop
+        ringInterval = setInterval(playRing, 2800); // Ringtone loop
     } catch (e) {
         console.error("Failed to start ringtone:", e);
     }
