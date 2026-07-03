@@ -5,13 +5,13 @@ import { THEMES } from '../constants';
 import { useSearchParams } from 'react-router-dom';
 import { 
   Camera, Mail, User, Calendar, Shield, Clock, Sparkles, 
-  Lock, Palette, Info, Check, Eye, AlertCircle, Trash2, Globe, EyeOff
+  Lock, Palette, Info, Check, Eye, AlertCircle, Trash2, Globe, EyeOff, LogOut
 } from 'lucide-react';
 import UserAvatar from '../components/UserAvatar';
 import toast from 'react-hot-toast';
 
 const ProfilePage = () => {
-  const { authUser, isUpdatingProfile, updateProfile, deleteAccount } = useAuthStore();
+  const { authUser, isUpdatingProfile, updateProfile, deleteAccount, logout } = useAuthStore();
   const { theme, setTheme } = useThemeStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
@@ -309,6 +309,18 @@ const ProfilePage = () => {
                 );
               })}
             </nav>
+
+            {/* Divider */}
+            <div className="h-[1px] bg-base-300/60 w-full"></div>
+
+            {/* Logout Button */}
+            <button
+              onClick={logout}
+              className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-2xl text-xs md:text-sm font-bold text-red-500 hover:text-white bg-red-500/10 hover:bg-red-500 transition-all duration-300 cursor-pointer shadow-sm"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Log Out</span>
+            </button>
           </div>
 
           {/* Right Column: Dynamic Panel Cards */}
