@@ -239,23 +239,27 @@ const ProfilePage = () => {
             {/* Avatar & Basic Info - Side-by-Side Flex on Mobile, Stack on Desktop */}
             <div className="flex flex-row md:flex-col items-center md:items-center text-left md:text-center gap-4 md:gap-4 w-full">
               <div className="relative group shrink-0">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary via-secondary to-primary rounded-full blur opacity-35 group-hover:opacity-55 transition-opacity duration-300"></div>
-                <div className="relative">
+                {/* Glow ring */}
+                <div className="absolute inset-0 bg-gradient-to-r from-primary via-secondary to-primary rounded-full blur opacity-30 group-hover:opacity-50 transition-opacity duration-300"></div>
+                <div className="relative cursor-pointer overflow-hidden rounded-full border-4 border-base-100 shadow-md transform group-hover:scale-102 transition-transform duration-300">
                   <UserAvatar
                     src={selectedImg || authUser?.profilePic}
                     alt={authUser?.fullName}
                     size="2xl"
                     showStatus={false}
-                    className="transform group-hover:scale-102 transition-transform duration-300 border-4 border-base-100 shadow-md"
                   />
+                  {/* Hover Overlay */}
                   <label
                     htmlFor="avatar-upload-profile"
-                    className={`absolute bottom-0 right-0 p-2 rounded-full bg-primary cursor-pointer hover:bg-primary/95 transition-all duration-200 hover:scale-110 shadow-lg shadow-primary/30 ${isUpdatingProfile ? "animate-pulse pointer-events-none" : ""}`}
+                    className={`absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 cursor-pointer ${isUpdatingProfile ? "pointer-events-none" : ""}`}
                   >
                     {isUpdatingProfile ? (
-                      <span className="loading loading-spinner loading-xs text-primary-content"></span>
+                      <span className="loading loading-spinner loading-md text-white"></span>
                     ) : (
-                      <Camera className="w-4 h-4 text-primary-content" />
+                      <>
+                        <Camera className="w-5 h-5 text-white mb-1" />
+                        <span className="text-[10px] text-zinc-300 font-medium">Change Photo</span>
+                      </>
                     )}
                     <input
                       type="file"
@@ -269,13 +273,9 @@ const ProfilePage = () => {
                 </div>
               </div>
               
-              <div className="space-y-1.5 flex-1 min-w-0">
+              <div className="space-y-1 flex-1 min-w-0">
                 <h2 className="text-lg md:text-xl font-bold text-base-content truncate leading-tight">{authUser?.fullName}</h2>
                 <p className="text-xs md:text-sm text-zinc-400 font-mono font-medium truncate">@{authUser?.username || "no-username"}</p>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-green-500/10 border border-green-500/20 rounded-full text-green-500 text-[10px] md:text-xs font-semibold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                  <span>Active Account</span>
-                </div>
               </div>
             </div>
 
