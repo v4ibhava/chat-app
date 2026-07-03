@@ -2,7 +2,7 @@ import { generateToken } from "../lib/utils.js";
 import User from "../models/user.model.js"
 import bcrypt from "bcryptjs"
 import cloudinary from "../lib/cloudinary.js"
-import { sendOTPEmail, sendWelcomeEmail } from "../lib/email.js"
+import { sendOTPEmail, sendWelcomeEmail, sendLoginEmail } from "../lib/email.js"
 
 export const signup = async (req, res) => {
     const { fullName, email, password } = req.body
@@ -80,6 +80,15 @@ export const login = async (req, res) => {
             return res.status(400).json({ message: "Invalid credentials" })
         }
         generateToken(user._id, res)
+        
+        // Trigger login notification email asynchronously
+        const userAgent = req.headers["user-agent"] || "Unknown Device";
+        const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "Unknown IP";
+        const date = new Date().toLocaleString();
+        sendLoginEmail(user.email, user.fullName, userAgent, ip, date).catch(err => {
+            console.error("Error sending login alert email:", err);
+        });
+
         res.status(200).json({
             _id: user._id,
             fullName: user.fullName,
