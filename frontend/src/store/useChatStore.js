@@ -52,7 +52,23 @@ export const useChatStore = create((set, get) => ({
 
             // Load from local IndexedDB
             const localMsgs = await getLocalMessages(myId, friendId);
-            set({ messages: localMsgs });
+            
+            // Recreate temporary object URLs for images stored as Blobs
+            const processedMsgs = localMsgs.map(m => {
+                if (m.fileBlob && m.fileType && m.fileType.startsWith("image/")) {
+                    try {
+                        return {
+                            ...m,
+                            image: URL.createObjectURL(m.fileBlob)
+                        };
+                    } catch (e) {
+                        console.error("Error creating Object URL for stored fileBlob:", e);
+                    }
+                }
+                return m;
+            });
+
+            set({ messages: processedMsgs });
 
             // Connect P2P WebRTC
             get().connectToPeer(friendId);
@@ -113,6 +129,20 @@ export const useChatStore = create((set, get) => ({
                 set({ p2pStatus: "offline" });
                 delete peerConnections[friendId];
                 delete dataChannels[friendId];
+
+                // Auto-reconnect if the user is still online and we are still viewing their chat
+                const onlineUsers = useAuthStore.getState().onlineUsers;
+                const isFriendOnline = onlineUsers.includes(friendId);
+                const selectedUser = get().selectedUser;
+                
+                if (isFriendOnline && selectedUser && selectedUser._id === friendId) {
+                    console.log(`Attempting P2P reconnection with ${friendId}...`);
+                    setTimeout(() => {
+                        if (get().selectedUser?._id === friendId) {
+                            get().connectToPeer(friendId);
+                        }
+                    }, 3000);
+                }
             }
         };
 
@@ -137,11 +167,17 @@ export const useChatStore = create((set, get) => ({
             pc.ondatachannel = (event) => {
                 get().setupDataChannel(friendId, event.channel);
             };
+            // Send request to initiator to send/re-send the offer
+            socket.emit("webrtc-signal", {
+                to: friendId,
+                signal: { type: "request-offer" }
+            });
         }
     },
 
     setupDataChannel: (friendId, dc) => {
         dc.binaryType = "arraybuffer";
+        dc.bufferedAmountLowThreshold = 65536; // 64KB backpressure threshold
         dataChannels[friendId] = dc;
 
         dc.onopen = () => {
@@ -199,7 +235,6 @@ export const useChatStore = create((set, get) => ({
         if (data.type === "sync-manifest") {
             const remoteManifest = data.manifest;
             const localMsgs = await getLocalMessages(myId, friendId);
-            const localMap = new Map(localMsgs.map(m => [m._id, m]));
             const remoteMap = new Map(remoteManifest.map(m => [m._id, m]));
 
             const dc = dataChannels[friendId];
@@ -208,35 +243,16 @@ export const useChatStore = create((set, get) => ({
             // 1. Sync messages we have but they don't
             for (const localMsg of localMsgs) {
                 if (!remoteMap.has(localMsg._id)) {
-                    if (localMsg.senderId === myId) {
-                        // We are the sender, they need this message
+                    if (localMsg.fileBlob) {
+                        // Send binary file chunk-by-chunk to preserve fileBlob
+                        get().sendFile(localMsg.fileBlob, localMsg.text, localMsg._id, localMsg.createdAt);
+                    } else {
                         dc.send(JSON.stringify({
                             type: "chat-message",
                             message: localMsg
                         }));
-                    } else {
-                        // They are the sender, but don't have it anymore (meaning they deleted it)
-                        await deleteLocalMessage(localMsg._id);
-                        if (selectedUser && selectedUser._id === friendId) {
-                            set({ messages: get().messages.filter(m => m._id !== localMsg._id) });
-                        }
                     }
                 }
-            }
-
-            // 2. Request messages they have but we don't
-            const requestIds = [];
-            for (const remoteMsg of remoteManifest) {
-                if (!localMap.has(remoteMsg._id)) {
-                    requestIds.push(remoteMsg._id);
-                }
-            }
-
-            if (requestIds.length > 0) {
-                dc.send(JSON.stringify({
-                    type: "request-messages",
-                    ids: requestIds
-                }));
             }
         }
 
@@ -251,10 +267,14 @@ export const useChatStore = create((set, get) => ({
             for (const id of ids) {
                 const msg = localMap.get(id);
                 if (msg) {
-                    dc.send(JSON.stringify({
-                        type: "chat-message",
-                        message: msg
-                    }));
+                    if (msg.fileBlob) {
+                        get().sendFile(msg.fileBlob, msg.text, msg._id, msg.createdAt);
+                    } else {
+                        dc.send(JSON.stringify({
+                            type: "chat-message",
+                            message: msg
+                        }));
+                    }
                 }
             }
         }
@@ -263,7 +283,14 @@ export const useChatStore = create((set, get) => ({
             const msg = data.message;
             await saveLocalMessage(msg);
             if (selectedUser && selectedUser._id === friendId) {
-                set({ messages: [...get().messages, msg] });
+                const currentMsgs = get().messages;
+                if (!currentMsgs.some(m => m._id === msg._id)) {
+                    // Recreate object URL if it has a fileBlob
+                    const processedMsg = (msg.fileBlob && msg.fileType && msg.fileType.startsWith("image/"))
+                        ? { ...msg, image: URL.createObjectURL(msg.fileBlob) }
+                        : msg;
+                    set({ messages: [...currentMsgs, processedMsg] });
+                }
             } else {
                 playMessageSound();
             }
@@ -278,17 +305,19 @@ export const useChatStore = create((set, get) => ({
         }
 
         if (data.type === "file-meta") {
-            const { fileId, fileName, fileSize, fileType, messageId, senderId, receiverId, createdAt, text } = data.meta;
+            const { fileId, fileName, fileSize, fileType, messageId, senderId, receiverId, createdAt, text, isSync } = data.meta;
             fileTransfers[fileId] = {
                 meta: data.meta,
                 chunks: [],
                 receivedSize: 0
             };
-            set({ fileProgress: { fileName, progress: 0, type: "receive" } });
+            if (!isSync) {
+                set({ fileProgress: { fileName, progress: 0, type: "receive" } });
+            }
         }
     },
 
-    sendFile: async (file, text) => {
+    sendFile: async (file, text, existingMessageId = null, existingCreatedAt = null) => {
         const { selectedUser } = get();
         if (!selectedUser) return;
 
@@ -304,31 +333,46 @@ export const useChatStore = create((set, get) => ({
 
         // Exactly 16-character file ID
         const fileId = Math.random().toString(36).substring(2, 10).padEnd(16, 'x').substring(0, 16);
-        const messageId = "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
-        const createdAt = new Date().toISOString();
+        const messageId = existingMessageId || "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
+        const createdAt = existingCreatedAt || new Date().toISOString();
 
         // Send metadata
-        dc.send(JSON.stringify({
-            type: "file-meta",
-            meta: {
-                fileId,
-                fileName: file.name,
-                fileSize: file.size,
-                fileType: file.type,
-                messageId,
-                senderId: myId,
-                receiverId: friendId,
-                createdAt,
-                text
-            }
-        }));
+        try {
+            dc.send(JSON.stringify({
+                type: "file-meta",
+                meta: {
+                    fileId,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileType: file.type,
+                    messageId,
+                    senderId: myId,
+                    receiverId: friendId,
+                    createdAt,
+                    text,
+                    isSync: !!existingMessageId
+                }
+            }));
+        } catch (err) {
+            console.error("Error sending file metadata:", err);
+            toast.error("Connection error. Could not send file.");
+            return;
+        }
 
-        set({ fileProgress: { fileName: file.name, progress: 0, type: "send" } });
+        if (!existingMessageId) {
+            set({ fileProgress: { fileName: file.name, progress: 0, type: "send" } });
+        }
 
         const chunkSize = 16384; // 16KB
-        let offset = 0;
 
         const readSlice = (o) => {
+            if (dc.readyState !== "open") {
+                console.error("Data channel closed during file transfer.");
+                toast.error("Connection lost. File transfer failed.");
+                if (!existingMessageId) set({ fileProgress: null });
+                return;
+            }
+
             const slice = file.slice(o, o + chunkSize);
             const reader = new FileReader();
             reader.onload = async (e) => {
@@ -348,14 +392,23 @@ export const useChatStore = create((set, get) => ({
                 chunkBuffer.set(new Uint8Array(headerBuffer), 0);
                 chunkBuffer.set(new Uint8Array(chunkData), headerBuffer.byteLength);
 
-                dc.send(chunkBuffer.buffer);
+                try {
+                    dc.send(chunkBuffer.buffer);
+                } catch (err) {
+                    console.error("Error sending chunk:", err);
+                    toast.error("Failed to send chunk. Connection lost.");
+                    if (!existingMessageId) set({ fileProgress: null });
+                    return;
+                }
 
                 const newOffset = o + chunkSize;
                 const progress = Math.min(100, Math.round((newOffset / file.size) * 100));
-                set({ fileProgress: { fileName: file.name, progress, type: "send" } });
+                if (!existingMessageId) {
+                    set({ fileProgress: { fileName: file.name, progress, type: "send" } });
+                }
 
                 if (newOffset < file.size) {
-                    if (dc.bufferedAmount > 16 * 1024 * 1024) { // WebRTC Backpressure control
+                    if (dc.bufferedAmount > dc.bufferedAmountLowThreshold) {
                         dc.onbufferedamountlow = () => {
                             dc.onbufferedamountlow = null;
                             readSlice(newOffset);
@@ -371,6 +424,7 @@ export const useChatStore = create((set, get) => ({
                         senderId: myId,
                         receiverId: friendId,
                         text,
+                        fileBlob: file, // Keep actual file/image binary persistently in IndexedDB
                         image: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
                         fileName: file.name,
                         fileSize: file.size,
@@ -378,7 +432,9 @@ export const useChatStore = create((set, get) => ({
                         createdAt
                     };
                     await saveLocalMessage(localMsg);
-                    set({ messages: [...get().messages, localMsg], fileProgress: null });
+                    if (!existingMessageId) {
+                        set({ messages: [...get().messages, localMsg], fileProgress: null });
+                    }
                 }
             };
             reader.readAsArrayBuffer(slice);
@@ -402,8 +458,12 @@ export const useChatStore = create((set, get) => ({
         transfer.chunks[chunkIndex] = chunkData;
         transfer.receivedSize += chunkData.byteLength;
 
-        const progress = Math.min(100, Math.round((transfer.receivedSize / transfer.meta.fileSize) * 100));
-        set({ fileProgress: { fileName: transfer.meta.fileName, progress, type: "receive" } });
+        const isSync = transfer.meta.isSync;
+
+        if (!isSync) {
+            const progress = Math.min(100, Math.round((transfer.receivedSize / transfer.meta.fileSize) * 100));
+            set({ fileProgress: { fileName: transfer.meta.fileName, progress, type: "receive" } });
+        }
 
         if (transfer.receivedSize >= transfer.meta.fileSize) {
             // Reassemble chunks into a single Blob
@@ -415,6 +475,7 @@ export const useChatStore = create((set, get) => ({
                 senderId: transfer.meta.senderId,
                 receiverId: transfer.meta.receiverId,
                 text: transfer.meta.text,
+                fileBlob: blob, // Keep actual file/image binary persistently in IndexedDB
                 image: transfer.meta.fileType.startsWith("image/") ? URL.createObjectURL(blob) : null,
                 fileName: transfer.meta.fileName,
                 fileSize: transfer.meta.fileSize,
@@ -425,13 +486,18 @@ export const useChatStore = create((set, get) => ({
             await saveLocalMessage(localMsg);
             const { selectedUser } = get();
             if (selectedUser && selectedUser._id === friendId) {
-                set({ messages: [...get().messages, localMsg] });
+                const currentMsgs = get().messages;
+                if (!currentMsgs.some(m => m._id === localMsg._id)) {
+                    set({ messages: [...currentMsgs, localMsg] });
+                }
             } else {
                 playMessageSound();
             }
 
             delete fileTransfers[fileId];
-            set({ fileProgress: null });
+            if (!isSync) {
+                set({ fileProgress: null });
+            }
         }
     },
 
@@ -528,6 +594,20 @@ export const useChatStore = create((set, get) => ({
                         set({ p2pStatus: "offline" });
                         delete peerConnections[from];
                         delete dataChannels[from];
+
+                        // Auto-reconnect if the user is still online and we are still viewing their chat
+                        const onlineUsers = useAuthStore.getState().onlineUsers;
+                        const isFriendOnline = onlineUsers.includes(from);
+                        const selectedUser = get().selectedUser;
+                        
+                        if (isFriendOnline && selectedUser && selectedUser._id === from) {
+                            console.log(`Attempting P2P reconnection with ${from}...`);
+                            setTimeout(() => {
+                                if (get().selectedUser?._id === from) {
+                                    get().connectToPeer(from);
+                                }
+                            }, 3000);
+                        }
                     }
                 };
 
@@ -537,8 +617,38 @@ export const useChatStore = create((set, get) => ({
             }
 
             try {
-                if (signal.type === "offer") {
+                if (signal.type === "request-offer") {
+                    if (pc.connectionState === "connected") return;
+                    const myId = useAuthStore.getState().authUser?._id;
+                    const isInitiator = myId < from;
+                    if (isInitiator) {
+                        if (!dataChannels[from]) {
+                            const dc = pc.createDataChannel("chat");
+                            get().setupDataChannel(from, dc);
+                        }
+                        try {
+                            const offer = await pc.createOffer();
+                            await pc.setLocalDescription(offer);
+                            socket.emit("webrtc-signal", {
+                                to: from,
+                                signal: { type: "offer", sdp: offer }
+                            });
+                        } catch (err) {
+                            console.error("Error creating WebRTC offer on request-offer:", err);
+                        }
+                    }
+                } else if (signal.type === "offer") {
                     await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+                    if (pc.iceQueue && pc.iceQueue.length > 0) {
+                        for (const cand of pc.iceQueue) {
+                            try {
+                                await pc.addIceCandidate(new RTCIceCandidate(cand));
+                            } catch (e) {
+                                console.error("Error adding queued ICE candidate:", e);
+                            }
+                        }
+                        pc.iceQueue = [];
+                    }
                     const answer = await pc.createAnswer();
                     await pc.setLocalDescription(answer);
                     socket.emit("webrtc-signal", {
@@ -547,8 +657,23 @@ export const useChatStore = create((set, get) => ({
                     });
                 } else if (signal.type === "answer") {
                     await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+                    if (pc.iceQueue && pc.iceQueue.length > 0) {
+                        for (const cand of pc.iceQueue) {
+                            try {
+                                await pc.addIceCandidate(new RTCIceCandidate(cand));
+                            } catch (e) {
+                                console.error("Error adding queued ICE candidate:", e);
+                            }
+                        }
+                        pc.iceQueue = [];
+                    }
                 } else if (signal.type === "candidate") {
-                    await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+                    if (pc.remoteDescription && pc.remoteDescription.type) {
+                        await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+                    } else {
+                        pc.iceQueue = pc.iceQueue || [];
+                        pc.iceQueue.push(signal.candidate);
+                    }
                 }
             } catch (err) {
                 console.error("Error setting WebRTC description/candidate:", err);

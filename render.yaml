@@ -12,6 +12,24 @@ services:
         value: 10000
       - key: FRONTEND_URL
         value: https://zync-git-master-fantasize-projects.vercel.app
+      - key: MONGODB_URI
+        sync: true
+      - key: JWT_SECRET
+        sync: true
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: true
+      - key: CLOUDINARY_API_KEY
+        sync: true
+      - key: CLOUDINARY_API_SECRET
+        sync: true
+      - key: SMTP_HOST
+        sync: true
+      - key: SMTP_PORT
+        sync: true
+      - key: SMTP_USER
+        sync: true
+      - key: SMTP_PASSWORD
+        sync: true
     healthCheckPath: /health
     healthCheckInterval: 300
     autoDeploy: true

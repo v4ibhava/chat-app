@@ -638,7 +638,7 @@ const ProfilePage = () => {
             <div className="text-center space-y-2">
               <h3 className="text-lg font-bold text-red-500">Delete Account Permanently?</h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                This action is permanent and cannot be undone. All your profile information, local chat logs, and contacts will be permanently removed.
+                This action is permanent and cannot be undone. All your profile information, local chat logs, and friends will be permanently removed.
               </p>
             </div>
 

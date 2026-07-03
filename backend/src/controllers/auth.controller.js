@@ -96,7 +96,11 @@ export const login = async (req, res) => {
 
 export const logout = (req, res) => {
     try {
-        res.cookie("jwt", "", { maxAge: 0 })
+        res.cookie("jwt", "", {
+            maxAge: 0,
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+            secure: process.env.NODE_ENV === "production"
+        })
         res.status(200).json({ message: "Logged out successfully" });
     } catch (error) {
         console.log("Error in logout controller", error.message);
@@ -339,12 +343,16 @@ export const deleteAccount = async (req, res) => {
         user.password = `deleted_account_placeholder_${Math.random()}`; // Prevents future logins
         user.profilePic = "";
         user.friendRequests = [];
-        // Keep user.friends array so their friends still see them as a contact
+        // Keep user.friends array so their friends still see them as a friend
         
         await user.save();
 
         // Clear the auth cookie
-        res.cookie("jwt", "", { maxAge: 0 });
+        res.cookie("jwt", "", {
+            maxAge: 0,
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+            secure: process.env.NODE_ENV === "production"
+        });
 
         res.status(200).json({ message: "Account and info deleted successfully" });
     } catch (error) {
