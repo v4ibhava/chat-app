@@ -24,8 +24,17 @@ const SignUpPage = () => {
       toast.error("Email is required");
       return false;
     }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) {
+      toast.error("Invalid email format");
+      return false;
+    }
     if (!formData.password.trim()) {
       toast.error("Password is required");
+      return false;
+    }
+    if (formData.password.length < 6) {
+      toast.error("Password must be at least 6 characters");
       return false;
     }
     return true;
