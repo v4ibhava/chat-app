@@ -8,6 +8,7 @@ import ProfilePage from './pages/ProfilePage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import FriendsPage from './pages/FriendsPage';
 import Navbar from './components/Navbar';
+import CallModal from './components/CallModal';
 import { useAuthStore } from './store/useAuthStore.js';
 import { useThemeStore } from './store/useThemeStore.js';
 import {Loader} from "lucide-react";
@@ -47,10 +48,12 @@ const App = () => {
         <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to="/login"/>} />
         <Route path="/friends" element={authUser ? <FriendsPage /> : <Navigate to="/login"/>} />
       </Routes>
+      <CallModal />
       <Toaster />
     </div>
   );
 };
+
 
 
 export default App

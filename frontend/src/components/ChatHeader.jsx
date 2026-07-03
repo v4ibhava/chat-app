@@ -1,11 +1,11 @@
 import React from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 import { useChatStore } from '../store/useChatStore'
-import { X, ArrowLeft } from 'lucide-react'
+import { X, ArrowLeft, Phone, Video } from 'lucide-react'
 import UserAvatar from './UserAvatar'
 
 const ChatHeader = () => {
-    const { selectedUser, setSelectedUser, p2pStatus } = useChatStore()
+    const { selectedUser, setSelectedUser, p2pStatus, startCall } = useChatStore()
     const { onlineUsers } = useAuthStore()
     
     return (
@@ -41,12 +41,32 @@ const ChatHeader = () => {
                         </p>
                     </div>
                 </div>
-                <button onClick={() => setSelectedUser(null)} className="hidden md:flex btn btn-sm btn-ghost btn-circle items-center justify-center">
-                    <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-1 sm:gap-2">
+                    {onlineUsers.includes(selectedUser._id) && !selectedUser.isDeletedAccount && (
+                        <>
+                            <button 
+                                onClick={() => startCall(selectedUser, "audio")}
+                                className="btn btn-sm btn-ghost btn-circle text-zinc-500 hover:text-primary"
+                                title="Audio Call"
+                            >
+                                <Phone className="w-5 h-5" />
+                            </button>
+                            <button 
+                                onClick={() => startCall(selectedUser, "video")}
+                                className="btn btn-sm btn-ghost btn-circle text-zinc-500 hover:text-primary"
+                                title="Video Call"
+                            >
+                                <Video className="w-5 h-5" />
+                            </button>
+                        </>
+                    )}
+                    <button onClick={() => setSelectedUser(null)} className="hidden md:flex btn btn-sm btn-ghost btn-circle items-center justify-center">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
             </div>
         </div>
     )
 }
 
-export default ChatHeader
+export default ChatHeader

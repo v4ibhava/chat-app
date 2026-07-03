@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { axiosInstance } from "../lib/axios.js";
 import toast from "react-hot-toast";
 import io from "socket.io-client";
+import { useChatStore } from "./useChatStore.js";
+
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.MODE === "development" ? "http://localhost:5000" : "/");
 
@@ -102,6 +104,17 @@ export const useAuthStore = create((set, get) => ({
             console.log("Received online users:", userIds);
             set({ onlineUsers: userIds });
         });
+
+        // Listen for WebRTC signals globally (calls and chat)
+        socket.on("webrtc-signal", (payload) => {
+            const { signal } = payload;
+            if (signal && signal.type && signal.type.startsWith("call-")) {
+                useChatStore.getState().handleCallSignal(payload);
+            } else {
+                useChatStore.getState().handleChatSignal(payload);
+            }
+        });
+
 
         // Handle connection events
         socket.on("connect", () => {

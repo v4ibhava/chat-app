@@ -4,6 +4,8 @@ import { axiosInstance } from "../lib/axios.js";
 import { useAuthStore } from "./useAuthStore.js";
 import { playMessageSound } from "../lib/sounds.js";
 import { getLocalMessages, saveLocalMessage, deleteLocalMessage } from "../lib/db.js";
+import { startDialTone, startRingTone, stopTone } from "../lib/ringtone.js";
+
 
 const peerConnections = {}; // { friendId: RTCPeerConnection }
 const dataChannels = {}; // { friendId: RTCDataChannel }
@@ -26,6 +28,16 @@ export const useChatStore = create((set, get) => ({
     isTyping: false,
     p2pStatus: "offline", // "offline" | "connecting" | "connected"
     fileProgress: null, // { fileName, progress, type: "send" | "receive" }
+    
+    // Calling States
+    callState: "idle", // "idle" | "ringing" | "incoming" | "connected"
+    callType: null, // "audio" | "video"
+    activeCallUser: null,
+    localStream: null,
+    remoteStream: null,
+    isMuted: false,
+    isCameraOff: false,
+    callConnection: null,
 
     getUsers: async () => {
         set({ isUsersLoading: true });
@@ -572,114 +584,6 @@ export const useChatStore = create((set, get) => ({
         const socket = useAuthStore.getState().socket;
         if (!socket) return;
 
-        socket.on("webrtc-signal", async ({ from, signal }) => {
-            let pc = peerConnections[from];
-            if (!pc) {
-                pc = new RTCPeerConnection(peerConfiguration);
-                peerConnections[from] = pc;
-
-                pc.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        socket.emit("webrtc-signal", {
-                            to: from,
-                            signal: { type: "candidate", candidate: event.candidate }
-                        });
-                    }
-                };
-
-                pc.onconnectionstatechange = () => {
-                    if (pc.connectionState === "connected") {
-                        set({ p2pStatus: "connected" });
-                    } else if (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed") {
-                        set({ p2pStatus: "offline" });
-                        delete peerConnections[from];
-                        delete dataChannels[from];
-
-                        // Auto-reconnect if the user is still online and we are still viewing their chat
-                        const onlineUsers = useAuthStore.getState().onlineUsers;
-                        const isFriendOnline = onlineUsers.includes(from);
-                        const selectedUser = get().selectedUser;
-                        
-                        if (isFriendOnline && selectedUser && selectedUser._id === from) {
-                            console.log(`Attempting P2P reconnection with ${from}...`);
-                            setTimeout(() => {
-                                if (get().selectedUser?._id === from) {
-                                    get().connectToPeer(from);
-                                }
-                            }, 3000);
-                        }
-                    }
-                };
-
-                pc.ondatachannel = (event) => {
-                    get().setupDataChannel(from, event.channel);
-                };
-            }
-
-            try {
-                if (signal.type === "request-offer") {
-                    if (pc.connectionState === "connected") return;
-                    const myId = useAuthStore.getState().authUser?._id;
-                    const isInitiator = myId < from;
-                    if (isInitiator) {
-                        if (!dataChannels[from]) {
-                            const dc = pc.createDataChannel("chat");
-                            get().setupDataChannel(from, dc);
-                        }
-                        try {
-                            const offer = await pc.createOffer();
-                            await pc.setLocalDescription(offer);
-                            socket.emit("webrtc-signal", {
-                                to: from,
-                                signal: { type: "offer", sdp: offer }
-                            });
-                        } catch (err) {
-                            console.error("Error creating WebRTC offer on request-offer:", err);
-                        }
-                    }
-                } else if (signal.type === "offer") {
-                    await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-                    if (pc.iceQueue && pc.iceQueue.length > 0) {
-                        for (const cand of pc.iceQueue) {
-                            try {
-                                await pc.addIceCandidate(new RTCIceCandidate(cand));
-                            } catch (e) {
-                                console.error("Error adding queued ICE candidate:", e);
-                            }
-                        }
-                        pc.iceQueue = [];
-                    }
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-                    socket.emit("webrtc-signal", {
-                        to: from,
-                        signal: { type: "answer", sdp: answer }
-                    });
-                } else if (signal.type === "answer") {
-                    await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-                    if (pc.iceQueue && pc.iceQueue.length > 0) {
-                        for (const cand of pc.iceQueue) {
-                            try {
-                                await pc.addIceCandidate(new RTCIceCandidate(cand));
-                            } catch (e) {
-                                console.error("Error adding queued ICE candidate:", e);
-                            }
-                        }
-                        pc.iceQueue = [];
-                    }
-                } else if (signal.type === "candidate") {
-                    if (pc.remoteDescription && pc.remoteDescription.type) {
-                        await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
-                    } else {
-                        pc.iceQueue = pc.iceQueue || [];
-                        pc.iceQueue.push(signal.candidate);
-                    }
-                }
-            } catch (err) {
-                console.error("Error setting WebRTC description/candidate:", err);
-            }
-        });
-
         socket.on("typing", ({ senderId }) => {
             const { selectedUser } = get();
             if (selectedUser && senderId === selectedUser._id) {
@@ -698,9 +602,431 @@ export const useChatStore = create((set, get) => ({
     unSubscribeToMessages: () => {
         const socket = useAuthStore.getState().socket;
         if (socket) {
-            socket.off("webrtc-signal");
             socket.off("typing");
             socket.off("stop typing");
+        }
+    },
+
+    handleChatSignal: async ({ from, signal }) => {
+        const socket = useAuthStore.getState().socket;
+        if (!socket) return;
+
+        let pc = peerConnections[from];
+        if (!pc) {
+            pc = new RTCPeerConnection(peerConfiguration);
+            peerConnections[from] = pc;
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit("webrtc-signal", {
+                        to: from,
+                        signal: { type: "candidate", candidate: event.candidate }
+                    });
+                }
+            };
+
+            pc.onconnectionstatechange = () => {
+                if (pc.connectionState === "connected") {
+                    set({ p2pStatus: "connected" });
+                } else if (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed") {
+                    set({ p2pStatus: "offline" });
+                    delete peerConnections[from];
+                    delete dataChannels[from];
+
+                    // Auto-reconnect if the user is still online and we are still viewing their chat
+                    const onlineUsers = useAuthStore.getState().onlineUsers;
+                    const isFriendOnline = onlineUsers.includes(from);
+                    const selectedUser = get().selectedUser;
+                    
+                    if (isFriendOnline && selectedUser && selectedUser._id === from) {
+                        console.log(`Attempting P2P reconnection with ${from}...`);
+                        setTimeout(() => {
+                            if (get().selectedUser?._id === from) {
+                                get().connectToPeer(from);
+                            }
+                        }, 3000);
+                    }
+                }
+            };
+
+            pc.ondatachannel = (event) => {
+                get().setupDataChannel(from, event.channel);
+            };
+        }
+
+        try {
+            if (signal.type === "request-offer") {
+                if (pc.connectionState === "connected") return;
+                const myId = useAuthStore.getState().authUser?._id;
+                const isInitiator = myId < from;
+                if (isInitiator) {
+                    if (!dataChannels[from]) {
+                        const dc = pc.createDataChannel("chat");
+                        get().setupDataChannel(from, dc);
+                    }
+                    try {
+                        const offer = await pc.createOffer();
+                        await pc.setLocalDescription(offer);
+                        socket.emit("webrtc-signal", {
+                            to: from,
+                            signal: { type: "offer", sdp: offer }
+                        });
+                    } catch (err) {
+                        console.error("Error creating WebRTC offer on request-offer:", err);
+                    }
+                }
+            } else if (signal.type === "offer") {
+                await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+                if (pc.iceQueue && pc.iceQueue.length > 0) {
+                    for (const cand of pc.iceQueue) {
+                        try {
+                            await pc.addIceCandidate(new RTCIceCandidate(cand));
+                        } catch (e) {
+                            console.error("Error adding queued ICE candidate:", e);
+                        }
+                    }
+                    pc.iceQueue = [];
+                }
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                socket.emit("webrtc-signal", {
+                    to: from,
+                    signal: { type: "answer", sdp: answer }
+                });
+            } else if (signal.type === "answer") {
+                await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+                if (pc.iceQueue && pc.iceQueue.length > 0) {
+                    for (const cand of pc.iceQueue) {
+                        try {
+                            await pc.addIceCandidate(new RTCIceCandidate(cand));
+                        } catch (e) {
+                            console.error("Error adding queued ICE candidate:", e);
+                        }
+                    }
+                    pc.iceQueue = [];
+                }
+            } else if (signal.type === "candidate") {
+                if (pc.remoteDescription && pc.remoteDescription.type) {
+                    await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+                } else {
+                    pc.iceQueue = pc.iceQueue || [];
+                    pc.iceQueue.push(signal.candidate);
+                }
+            }
+        } catch (err) {
+            console.error("Error setting WebRTC description/candidate:", err);
+        }
+    },
+
+    startCall: async (user, type) => {
+        if (get().callState !== "idle") {
+            toast.error("You are already in a call.");
+            return;
+        }
+
+        const socket = useAuthStore.getState().socket;
+        if (!socket) return;
+
+        set({
+            callState: "ringing",
+            callType: type,
+            activeCallUser: user,
+            isMuted: false,
+            isCameraOff: false
+        });
+
+        startDialTone();
+
+        try {
+            const constraints = {
+                audio: true,
+                video: type === "video"
+            };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            set({ localStream: stream });
+
+            const pc = new RTCPeerConnection(peerConfiguration);
+            set({ callConnection: pc });
+
+            stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit("webrtc-signal", {
+                        to: user._id,
+                        signal: { type: "call-candidate", candidate: event.candidate }
+                    });
+                }
+            };
+
+            pc.ontrack = (event) => {
+                set({ remoteStream: event.streams[0] });
+            };
+
+            pc.onconnectionstatechange = () => {
+                if (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed") {
+                    get().endCall();
+                }
+            };
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            socket.emit("webrtc-signal", {
+                to: user._id,
+                signal: { type: "call-offer", sdp: offer, callType: type }
+            });
+
+        } catch (err) {
+            console.error("Failed to start call:", err);
+            toast.error("Failed to access camera or microphone.");
+            get().endCall();
+        }
+    },
+
+    acceptCall: async () => {
+        const { callState, callType, activeCallUser, callOfferSdp } = get();
+        if (callState !== "incoming" || !activeCallUser) return;
+
+        const socket = useAuthStore.getState().socket;
+        if (!socket) return;
+
+        stopTone();
+        set({ callState: "connected" });
+
+        try {
+            const constraints = {
+                audio: true,
+                video: callType === "video"
+            };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            set({ localStream: stream });
+
+            const pc = new RTCPeerConnection(peerConfiguration);
+            set({ callConnection: pc });
+
+            stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit("webrtc-signal", {
+                        to: activeCallUser._id,
+                        signal: { type: "call-candidate", candidate: event.candidate }
+                    });
+                }
+            };
+
+            pc.ontrack = (event) => {
+                set({ remoteStream: event.streams[0] });
+            };
+
+            pc.onconnectionstatechange = () => {
+                if (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed") {
+                    get().endCall();
+                }
+            };
+
+            await pc.setRemoteDescription(new RTCSessionDescription(callOfferSdp));
+
+            if (pc.callIceQueue && pc.callIceQueue.length > 0) {
+                for (const cand of pc.callIceQueue) {
+                    try {
+                        await pc.addIceCandidate(new RTCIceCandidate(cand));
+                    } catch (e) {
+                        console.error("Error adding queued call candidate:", e);
+                    }
+                }
+                pc.callIceQueue = [];
+            }
+
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            socket.emit("webrtc-signal", {
+                to: activeCallUser._id,
+                signal: { type: "call-answer", sdp: answer }
+            });
+
+        } catch (err) {
+            console.error("Error accepting call:", err);
+            toast.error("Failed to access camera or microphone.");
+            get().rejectCall();
+        }
+    },
+
+    rejectCall: () => {
+        const { activeCallUser } = get();
+        stopTone();
+
+        if (activeCallUser) {
+            const socket = useAuthStore.getState().socket;
+            if (socket) {
+                socket.emit("webrtc-signal", {
+                    to: activeCallUser._id,
+                    signal: { type: "call-rejected" }
+                });
+            }
+        }
+
+        get().cleanupCallState();
+    },
+
+    rejectWithBusyMessage: async () => {
+        const { activeCallUser } = get();
+        if (!activeCallUser) return;
+        
+        get().rejectCall();
+
+        set({ selectedUser: activeCallUser });
+
+        const messageText = "I'm busy right now, I'll call you later.";
+        await get().sendMessage({ text: messageText });
+    },
+
+    endCall: () => {
+        const { activeCallUser } = get();
+        stopTone();
+
+        if (activeCallUser) {
+            const socket = useAuthStore.getState().socket;
+            if (socket) {
+                socket.emit("webrtc-signal", {
+                    to: activeCallUser._id,
+                    signal: { type: "call-hangup" }
+                });
+            }
+        }
+
+        get().cleanupCallState();
+    },
+
+    cleanupCallState: () => {
+        stopTone();
+        const { localStream, callConnection } = get();
+
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+        }
+
+        if (callConnection) {
+            try {
+                callConnection.close();
+            } catch (e) {}
+        }
+
+        set({
+            callState: "idle",
+            callType: null,
+            activeCallUser: null,
+            localStream: null,
+            remoteStream: null,
+            isMuted: false,
+            isCameraOff: false,
+            callConnection: null,
+            callOfferSdp: null
+        });
+    },
+
+    toggleMute: () => {
+        const { localStream, isMuted } = get();
+        if (localStream) {
+            localStream.getAudioTracks().forEach(track => {
+                track.enabled = isMuted;
+            });
+            set({ isMuted: !isMuted });
+        }
+    },
+
+    toggleCamera: () => {
+        const { localStream, isCameraOff } = get();
+        if (localStream) {
+            localStream.getVideoTracks().forEach(track => {
+                track.enabled = isCameraOff;
+            });
+            set({ isCameraOff: !isCameraOff });
+        }
+    },
+
+    handleCallSignal: async ({ from, signal }) => {
+        const socket = useAuthStore.getState().socket;
+        if (!socket) return;
+
+        const { callState, callConnection } = get();
+
+        if (signal.type === "call-offer") {
+            if (callState !== "idle") {
+                socket.emit("webrtc-signal", {
+                    to: from,
+                    signal: { type: "call-rejected", reason: "busy" }
+                });
+                return;
+            }
+
+            const chatUsers = get().users;
+            const senderUser = chatUsers.find(u => u._id === from);
+            
+            set({
+                callState: "incoming",
+                callType: signal.callType,
+                activeCallUser: senderUser || { _id: from, fullName: "Unknown User" },
+                callOfferSdp: signal.sdp
+            });
+
+            startRingTone();
+        }
+
+        else if (signal.type === "call-answer") {
+            const pc = callConnection;
+            if (pc) {
+                try {
+                    await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+                    stopTone();
+                    set({ callState: "connected" });
+
+                    if (pc.callIceQueue && pc.callIceQueue.length > 0) {
+                        for (const cand of pc.callIceQueue) {
+                            try {
+                                await pc.addIceCandidate(new RTCIceCandidate(cand));
+                            } catch (e) {}
+                        }
+                        pc.callIceQueue = [];
+                    }
+                } catch (e) {
+                    console.error("Error setting call remote description:", e);
+                }
+            }
+        }
+
+        else if (signal.type === "call-candidate") {
+            const pc = callConnection;
+            if (pc) {
+                if (pc.remoteDescription && pc.remoteDescription.type) {
+                    try {
+                        await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+                    } catch (e) {
+                        console.error("Error adding call candidate:", e);
+                    }
+                } else {
+                    pc.callIceQueue = pc.callIceQueue || [];
+                    pc.callIceQueue.push(signal.candidate);
+                }
+            }
+        }
+
+        else if (signal.type === "call-rejected") {
+            stopTone();
+            if (signal.reason === "busy") {
+                toast.error(`${get().activeCallUser?.fullName || "User"} is busy on another call.`);
+            } else {
+                toast.error("Call declined.");
+            }
+            get().cleanupCallState();
+        }
+
+        else if (signal.type === "call-hangup") {
+            stopTone();
+            toast.error("Call ended.");
+            get().cleanupCallState();
         }
     },
 
