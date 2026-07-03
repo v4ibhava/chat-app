@@ -36,8 +36,8 @@ const ChatHeader = () => {
                             p2pStatus === 'connecting' ? 'text-amber-500' : 'text-zinc-500'
                         }`}>
                             {selectedUser.isDeletedAccount ? 'Account Deleted' :
-                             p2pStatus === 'connected' ? '● Connected (P2P)' :
-                             p2pStatus === 'connecting' ? '● Connecting P2P...' : '○ Offline'}
+                             p2pStatus === 'connected' ? 'Connected (P2P)' :
+                             p2pStatus === 'connecting' ? 'Connecting P2P...' : 'Offline'}
                         </p>
                     </div>
                 </div>

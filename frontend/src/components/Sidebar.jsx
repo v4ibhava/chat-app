@@ -46,12 +46,13 @@ const Sidebar = () => {
 
             <div className="block md:hidden lg:block text-left min-w-0 flex-1">
               <div className="font-medium truncate">{user.isDeletedAccount ? "Deleted User" : user.fullName}</div>
-              {user.username && !user.isDeletedAccount && (
-                <div className="text-xs text-zinc-400 truncate">@{user.username}</div>
+              {user.isDeletedAccount ? (
+                <div className="text-xs text-zinc-500 truncate">Account Deleted</div>
+              ) : (
+                user.username && (
+                  <div className="text-xs text-zinc-400 truncate">@{user.username}</div>
+                )
               )}
-              <div className={`text-xs truncate ${user.isDeletedAccount ? 'text-zinc-500' : onlineUsers.includes(user._id) ? "text-green-500/80" : "text-zinc-500"}`}>
-                {user.isDeletedAccount ? "Account Deleted" : onlineUsers.includes(user._id) ? "● Online" : "○ Offline"}
-              </div>
             </div>
           </button>
         ))}
