@@ -19,6 +19,7 @@ const __dirname = path.resolve();
 
 const FRONTEND_URLS = [
   process.env.FRONTEND_URL,
+  "https://zync-liart.vercel.app",
   "http://localhost:5173",
   "http://localhost:3000"
 ].filter(Boolean);
