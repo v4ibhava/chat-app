@@ -227,7 +227,8 @@ const CallModal = () => {
                                         autoPlay 
                                         playsInline 
                                         muted 
-                                        className="w-full h-full object-cover transform -scale-x-100"
+                                        className="w-full h-full object-cover"
+                                        style={{ transform: "scaleX(-1)" }}
                                     />
                                     {isCameraOff && (
                                         <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center text-zinc-600">
