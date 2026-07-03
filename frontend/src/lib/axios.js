@@ -1,6 +1,11 @@
 import axios from "axios"
 
+const backendUrl = import.meta.env.VITE_BACKEND_URL;
+const cleanBackendUrl = backendUrl 
+    ? (backendUrl.endsWith("/") ? backendUrl.slice(0, -1) : backendUrl)
+    : "";
+
 export const axiosInstance = axios.create({
-    baseURL: import.meta.env.VITE_BACKEND_URL ? `${import.meta.env.VITE_BACKEND_URL}/api` : "/api",
+    baseURL: cleanBackendUrl ? `${cleanBackendUrl}/api` : "/api",
     withCredentials: true,
-})
+})
