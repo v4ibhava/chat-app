@@ -58,6 +58,7 @@ const ProfilePage = () => {
       setUsername(authUser.username || "");
       setEmail(authUser.email || "");
       setCurrentPassword("");
+      setShowActiveStatus(authUser.showLastSeen ?? true);
     }
   }, [authUser]);
 
@@ -152,13 +153,13 @@ const ProfilePage = () => {
     await updateProfile(payload);
   };
 
-  const handleTogglePrivacy = (type, val) => {
+  const handleTogglePrivacy = async (type, val) => {
     if (type === 'private') {
       setIsPrivate(val);
       toast.success(val ? "Account set to Private" : "Account set to Public");
     } else if (type === 'status') {
       setShowActiveStatus(val);
-      toast.success(val ? "Activity Status enabled" : "Activity Status disabled");
+      await updateProfile({ showLastSeen: val });
     }
   };
 

@@ -38,6 +38,15 @@ export const getReceiverSocketId = (receiverId) => {
     return userSocketMap[receiverId];
 };
 
+const updateLastSeen = async (userId) => {
+    if (!userId) return;
+    try {
+        await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+    } catch (e) {
+        console.error("Error updating lastSeen:", e);
+    }
+};
+
 io.on("connection", (socket) => {
     console.log(`socket ${socket.id} connected`);
 
@@ -45,12 +54,14 @@ io.on("connection", (socket) => {
     if (userId) {
         userSocketMap[userId] = socket.id;
         io.emit("getOnlineUsers", Object.keys(userSocketMap));
+        updateLastSeen(userId);
     }
 
     socket.on("userReconnected", (userId) => {
         if (userId) {
             userSocketMap[userId] = socket.id;
             io.emit("getOnlineUsers", Object.keys(userSocketMap));
+            updateLastSeen(userId);
         }
     });
 
@@ -114,6 +125,7 @@ io.on("connection", (socket) => {
             delete userSocketMap[userId];
             // Emit updated online users list after user disconnects
             io.emit("getOnlineUsers", Object.keys(userSocketMap));
+            updateLastSeen(userId);
         }
     });
 });

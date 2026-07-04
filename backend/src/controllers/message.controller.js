@@ -15,7 +15,15 @@ export const getUsersForSidebar = async (req, res) => {
             _id: { $in: user.friends }
         }).select("-password");
 
-        res.status(200).json(filteredUsers);
+        const sanitizedUsers = filteredUsers.map(u => {
+            const userObj = u.toObject();
+            if (!userObj.showLastSeen) {
+                userObj.lastSeen = null;
+            }
+            return userObj;
+        });
+
+        res.status(200).json(sanitizedUsers);
 
     } catch (error) {
         console.error("Error in getUsersForSidebar: ", error.message);

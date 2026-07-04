@@ -11,6 +11,7 @@ const peerConnections = {}; // { friendId: RTCPeerConnection }
 const dataChannels = {}; // { friendId: RTCDataChannel }
 const fileTransfers = {}; // { fileId: { meta, chunks, receivedSize } }
 let callIceQueue = [];
+let screenAudioMix = null;
 
 const peerConfiguration = {
     iceServers: [
@@ -300,6 +301,7 @@ export const useChatStore = create((set, get) => ({
         if (data.type === "chat-message") {
             const msg = data.message;
             await saveLocalMessage(msg);
+            playMessageSound();
             if (selectedUser && selectedUser._id === friendId) {
                 const currentMsgs = get().messages;
                 if (!currentMsgs.some(m => m._id === msg._id)) {
@@ -309,8 +311,6 @@ export const useChatStore = create((set, get) => ({
                         : msg;
                     set({ messages: [...currentMsgs, processedMsg] });
                 }
-            } else {
-                playMessageSound();
             }
         }
 
@@ -963,6 +963,16 @@ export const useChatStore = create((set, get) => ({
     cleanupCallState: () => {
         stopTone();
         callIceQueue = [];
+        
+        if (screenAudioMix) {
+            try {
+                screenAudioMix.micSource.disconnect();
+                screenAudioMix.screenSource.disconnect();
+                screenAudioMix.ctx.close();
+            } catch (e) {}
+            screenAudioMix = null;
+        }
+
         const { localStream, callConnection, screenStream } = get();
 
         if (localStream) {
@@ -1035,18 +1045,37 @@ export const useChatStore = create((set, get) => ({
                 screenStream.getTracks().forEach(track => track.stop());
             }
 
-            if (localStream) {
+            if (localStream && callConnection) {
+                const senders = callConnection.getSenders();
+                const videoSender = senders.find(s => s.track && s.track.kind === "video");
                 const cameraTrack = localStream.getVideoTracks()[0];
-                if (cameraTrack && callConnection) {
-                    const senders = callConnection.getSenders();
-                    const videoSender = senders.find(s => s.track && s.track.kind === "video");
-                    if (videoSender) {
-                        try {
-                            await videoSender.replaceTrack(cameraTrack);
-                        } catch (err) {
-                            console.error("Error restoring camera track:", err);
-                        }
+                if (videoSender && cameraTrack) {
+                    try {
+                        await videoSender.replaceTrack(cameraTrack);
+                    } catch (err) {
+                        console.error("Error restoring camera track:", err);
                     }
+                }
+
+                // Restore microphone track if we had mixed audio
+                if (screenAudioMix) {
+                    try {
+                        const audioSender = senders.find(s => s.track && s.track.kind === "audio");
+                        const micTrack = localStream.getAudioTracks()[0];
+                        if (audioSender && micTrack) {
+                            await audioSender.replaceTrack(micTrack);
+                        }
+                    } catch (err) {
+                        console.error("Error restoring microphone track:", err);
+                    }
+                    
+                    // Clean up AudioContext nodes
+                    try {
+                        screenAudioMix.micSource.disconnect();
+                        screenAudioMix.screenSource.disconnect();
+                        screenAudioMix.ctx.close();
+                    } catch (e) {}
+                    screenAudioMix = null;
                 }
             }
 
@@ -1066,21 +1095,56 @@ export const useChatStore = create((set, get) => ({
             toast.success("Stopped sharing screen");
         } else {
             try {
-                // Request screen stream with safe constraints to ensure stability
+                // Request screen stream with safe constraints and audio option enabled
                 const stream = await navigator.mediaDevices.getDisplayMedia({ 
                     video: {
                         width: { max: 1920 },
                         height: { max: 1080 },
                         frameRate: { max: 30 }
-                    }
+                    },
+                    audio: true
                 });
                 const screenTrack = stream.getVideoTracks()[0];
+                const screenAudioTrack = stream.getAudioTracks()[0];
 
                 if (callConnection) {
                     const senders = callConnection.getSenders();
+                    
+                    // Replace video track
                     const videoSender = senders.find(s => s.track && s.track.kind === "video");
                     if (videoSender) {
                         await videoSender.replaceTrack(screenTrack);
+                    }
+
+                    // Mix screen audio with microphone audio if available
+                    if (screenAudioTrack && localStream) {
+                        const micTrack = localStream.getAudioTracks()[0];
+                        if (micTrack) {
+                            try {
+                                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                                const micSource = ctx.createMediaStreamSource(new MediaStream([micTrack]));
+                                const screenSource = ctx.createMediaStreamSource(new MediaStream([screenAudioTrack]));
+                                const dest = ctx.createMediaStreamDestination();
+
+                                micSource.connect(dest);
+                                screenSource.connect(dest);
+
+                                const mixedTrack = dest.stream.getAudioTracks()[0];
+                                const audioSender = senders.find(s => s.track && s.track.kind === "audio");
+                                if (audioSender) {
+                                    await audioSender.replaceTrack(mixedTrack);
+                                }
+
+                                screenAudioMix = {
+                                    ctx,
+                                    micSource,
+                                    screenSource,
+                                    dest
+                                };
+                            } catch (e) {
+                                console.error("Error mixing screen audio:", e);
+                            }
+                        }
                     }
                 }
 
@@ -1117,16 +1181,35 @@ export const useChatStore = create((set, get) => ({
             screenStream.getTracks().forEach(track => track.stop());
         }
 
-        if (localStream) {
+        if (localStream && callConnection) {
+            const senders = callConnection.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === "video");
             const cameraTrack = localStream.getVideoTracks()[0];
-            if (cameraTrack && callConnection) {
-                const senders = callConnection.getSenders();
-                const videoSender = senders.find(s => s.track && s.track.kind === "video");
-                if (videoSender) {
-                    try {
-                        await videoSender.replaceTrack(cameraTrack);
-                    } catch (err) {}
+            if (videoSender && cameraTrack) {
+                try {
+                    await videoSender.replaceTrack(cameraTrack);
+                } catch (err) {}
+            }
+
+            // Restore microphone track if we had mixed audio
+            if (screenAudioMix) {
+                try {
+                    const audioSender = senders.find(s => s.track && s.track.kind === "audio");
+                    const micTrack = localStream.getAudioTracks()[0];
+                    if (audioSender && micTrack) {
+                        await audioSender.replaceTrack(micTrack);
+                    }
+                } catch (err) {
+                    console.error("Error restoring microphone track:", err);
                 }
+                
+                // Clean up AudioContext nodes
+                try {
+                    screenAudioMix.micSource.disconnect();
+                    screenAudioMix.screenSource.disconnect();
+                    screenAudioMix.ctx.close();
+                } catch (e) {}
+                screenAudioMix = null;
             }
         }
 

@@ -106,6 +106,35 @@ export const useAuthStore = create((set, get) => ({
         // Listen for online users updates
         socket.on("getOnlineUsers", (userIds) => {
             console.log("Received online users:", userIds);
+            
+            // Check if any user went offline to update their lastSeen time locally
+            const prevOnlineUsers = get().onlineUsers;
+            const offlineUsers = prevOnlineUsers.filter(id => !userIds.includes(id));
+            if (offlineUsers.length > 0) {
+                const chatStore = useChatStore.getState();
+                const { users, selectedUser } = chatStore;
+                let updated = false;
+                const newUsers = users.map(u => {
+                    if (offlineUsers.includes(u._id)) {
+                        updated = true;
+                        // Only set lastSeen if they have showLastSeen enabled
+                        return { ...u, lastSeen: u.showLastSeen !== false ? new Date().toISOString() : null };
+                    }
+                    return u;
+                });
+                if (updated) {
+                    useChatStore.setState({ users: newUsers });
+                    if (selectedUser && offlineUsers.includes(selectedUser._id)) {
+                        useChatStore.setState({ 
+                            selectedUser: { 
+                                ...selectedUser, 
+                                lastSeen: selectedUser.showLastSeen !== false ? new Date().toISOString() : null 
+                            } 
+                        });
+                    }
+                }
+            }
+
             set({ onlineUsers: userIds });
         });
 

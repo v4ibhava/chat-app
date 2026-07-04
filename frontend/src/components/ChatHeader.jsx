@@ -4,6 +4,30 @@ import { useChatStore } from '../store/useChatStore'
 import { X, ArrowLeft, Phone, Video } from 'lucide-react'
 import UserAvatar from './UserAvatar'
 
+const formatLastSeen = (lastSeen) => {
+    if (!lastSeen) return "Offline";
+    try {
+        const date = new Date(lastSeen);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        
+        if (diffMins < 1) return "Last online: just now";
+        if (diffMins < 60) return `Last online: ${diffMins}m ago`;
+        
+        const diffHours = Math.floor(diffMins / 60);
+        if (diffHours < 24) return `Last online: ${diffHours}h ago`;
+        
+        const diffDays = Math.floor(diffHours / 24);
+        if (diffDays === 1) return "Last online: yesterday";
+        if (diffDays < 7) return `Last online: ${diffDays}d ago`;
+        
+        return `Last online: ${date.toLocaleDateString()}`;
+    } catch (e) {
+        return "Offline";
+    }
+};
+
 const ChatHeader = () => {
     const { selectedUser, setSelectedUser, p2pStatus, startCall } = useChatStore()
     const { onlineUsers } = useAuthStore()
@@ -40,11 +64,14 @@ const ChatHeader = () => {
                             <p className={`text-xs ${
                                 selectedUser.isDeletedAccount ? 'text-zinc-500' :
                                 p2pStatus === 'connected' ? 'text-green-500' :
-                                p2pStatus === 'connecting' ? 'text-amber-500' : 'text-zinc-500'
+                                p2pStatus === 'connecting' ? 'text-amber-500' : 
+                                onlineUsers.includes(selectedUser._id) ? 'text-green-500 animate-pulse' : 'text-zinc-500'
                             }`}>
                                 {selectedUser.isDeletedAccount ? 'Account Deleted' :
                                  p2pStatus === 'connected' ? 'Connected (P2P)' :
-                                 p2pStatus === 'connecting' ? 'Connecting P2P...' : 'Offline'}
+                                 p2pStatus === 'connecting' ? 'Connecting P2P...' : 
+                                 onlineUsers.includes(selectedUser._id) ? 'Online' :
+                                 (selectedUser.showLastSeen !== false && selectedUser.lastSeen) ? formatLastSeen(selectedUser.lastSeen) : 'Offline'}
                             </p>
                         </div>
                     </div>
@@ -118,7 +145,8 @@ const ChatHeader = () => {
                             <div className="mt-5 inline-flex items-center gap-1.5 px-3 py-1 bg-base-300 border border-base-300/40 rounded-full text-xs font-semibold">
                                 <span className={`w-1.5 h-1.5 rounded-full ${onlineUsers.includes(selectedUser._id) ? "bg-green-500 animate-pulse" : "bg-zinc-400"}`}></span>
                                 <span className={onlineUsers.includes(selectedUser._id) ? "text-green-500" : "text-zinc-500"}>
-                                    {onlineUsers.includes(selectedUser._id) ? "Online" : "Offline"}
+                                    {onlineUsers.includes(selectedUser._id) ? "Online" : 
+                                     (selectedUser.showLastSeen !== false && selectedUser.lastSeen) ? formatLastSeen(selectedUser.lastSeen) : "Offline"}
                                 </span>
                             </div>
                         </div>

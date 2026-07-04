@@ -47,6 +47,14 @@ const userSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        showLastSeen: {
+            type: Boolean,
+            default: true,
+        },
+        lastSeen: {
+            type: Date,
+            default: Date.now,
+        },
     },
     { timestamps: true }
 );

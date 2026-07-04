@@ -12,17 +12,23 @@ const Notifications = () => {
   const [prevCount, setPrevCount] = useState(0);
   const { authUser, checkAuth } = useAuthStore();
   const navigate = useNavigate();
+  const isFirstLoad = useRef(true);
 
   useEffect(() => {
     if (authUser) {
-      fetchFriendRequests();
+      fetchFriendRequests().finally(() => {
+        // Set isFirstLoad to false after the very first API response completes
+        setTimeout(() => {
+          isFirstLoad.current = false;
+        }, 1000);
+      });
       const interval = setInterval(fetchFriendRequests, 10000);
       return () => clearInterval(interval);
     }
   }, [authUser]);
 
   useEffect(() => {
-    if (friendRequests.length > prevCount && prevCount > 0) {
+    if (!isFirstLoad.current && friendRequests.length > prevCount) {
       playNotificationSound('friendRequest');
     }
     setPrevCount(friendRequests.length);
