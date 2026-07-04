@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Phone, PhoneOff, MessageSquare, Mic, MicOff, Video, VideoOff } from 'lucide-react';
+import { Phone, PhoneOff, MessageSquare, Mic, MicOff, Video, VideoOff, Monitor } from 'lucide-react';
 import { useChatStore } from '../store/useChatStore';
 import UserAvatar from './UserAvatar';
 
@@ -18,7 +18,10 @@ const CallModal = () => {
         rejectWithBusyMessage,
         endCall,
         toggleMute,
-        toggleCamera
+        toggleCamera,
+        isScreenSharing,
+        screenStream,
+        toggleScreenShare
     } = useChatStore();
 
     const localVideoRef = useRef(null);
@@ -43,10 +46,16 @@ const CallModal = () => {
 
     // Handle local stream attachment
     useEffect(() => {
-        if (localVideoRef.current && localStream) {
-            localVideoRef.current.srcObject = localStream;
+        if (localVideoRef.current) {
+            if (isScreenSharing && screenStream) {
+                localVideoRef.current.srcObject = screenStream;
+            } else if (localStream) {
+                localVideoRef.current.srcObject = localStream;
+            } else {
+                localVideoRef.current.srcObject = null;
+            }
         }
-    }, [localStream, callState]);
+    }, [localStream, screenStream, isScreenSharing, callState]);
 
     // Handle remote stream attachment
     useEffect(() => {
@@ -241,9 +250,9 @@ const CallModal = () => {
                                         playsInline 
                                         muted 
                                         className="w-full h-full object-cover"
-                                        style={{ transform: "scaleX(-1)" }}
+                                        style={{ transform: isScreenSharing ? "none" : "scaleX(-1)" }}
                                     />
-                                    {isCameraOff && (
+                                    {isCameraOff && !isScreenSharing && (
                                         <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center text-zinc-600">
                                             <VideoOff className="w-5 h-5" />
                                         </div>
@@ -314,17 +323,30 @@ const CallModal = () => {
                             <PhoneOff className="w-5 h-5 text-white" />
                         </button>
 
-                        {/* Video Toggle (Only for Video Calls) */}
+                        {/* Video & Screen Share Controls (Only for Video Calls) */}
                         {callType === "video" && (
-                            <button 
-                                onClick={toggleCamera} 
-                                className={`btn btn-circle btn-lg border border-zinc-800/80 ${
-                                    isCameraOff ? "bg-red-500 border-none text-white" : "bg-zinc-900 hover:bg-zinc-800 text-zinc-300"
-                                }`}
-                                title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
-                            >
-                                {isCameraOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
-                            </button>
+                            <>
+                                <button 
+                                    onClick={toggleCamera} 
+                                    className={`btn btn-circle btn-lg border border-zinc-800/80 ${
+                                        isCameraOff ? "bg-red-500 border-none text-white" : "bg-zinc-900 hover:bg-zinc-800 text-zinc-300"
+                                    }`}
+                                    title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
+                                    disabled={isScreenSharing}
+                                >
+                                    {isCameraOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+                                </button>
+
+                                <button 
+                                    onClick={toggleScreenShare} 
+                                    className={`btn btn-circle btn-lg border border-zinc-800/80 ${
+                                        isScreenSharing ? "bg-blue-500 hover:bg-blue-600 border-none text-white animate-pulse" : "bg-zinc-900 hover:bg-zinc-800 text-zinc-300"
+                                    }`}
+                                    title={isScreenSharing ? "Stop Screen Share" : "Share Screen"}
+                                >
+                                    <Monitor className="w-5 h-5" />
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>

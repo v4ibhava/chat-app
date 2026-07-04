@@ -29,6 +29,8 @@ export const useChatStore = create((set, get) => ({
     p2pStatus: "offline", // "offline" | "connecting" | "connected"
     fileProgress: null, // { fileId, fileName, progress, type: "send" | "receive" }
     activeFileTransferId: null,
+    isScreenSharing: false,
+    screenStream: null,
     
     // Calling States
     callState: "idle", // "idle" | "ringing" | "incoming" | "connected"
@@ -932,10 +934,14 @@ export const useChatStore = create((set, get) => ({
 
     cleanupCallState: () => {
         stopTone();
-        const { localStream, callConnection } = get();
+        const { localStream, callConnection, screenStream } = get();
 
         if (localStream) {
             localStream.getTracks().forEach(track => track.stop());
+        }
+
+        if (screenStream) {
+            screenStream.getTracks().forEach(track => track.stop());
         }
 
         if (callConnection) {
@@ -954,7 +960,9 @@ export const useChatStore = create((set, get) => ({
             isCameraOff: false,
             isRemoteCameraOff: false,
             callConnection: null,
-            callOfferSdp: null
+            callOfferSdp: null,
+            isScreenSharing: false,
+            screenStream: null
         });
     },
 
@@ -986,6 +994,92 @@ export const useChatStore = create((set, get) => ({
                 });
             }
         }
+    },
+
+    toggleScreenShare: async () => {
+        const { isScreenSharing, localStream, screenStream, callConnection } = get();
+
+        if (isScreenSharing) {
+            if (screenStream) {
+                screenStream.getTracks().forEach(track => track.stop());
+            }
+
+            if (localStream) {
+                const cameraTrack = localStream.getVideoTracks()[0];
+                if (cameraTrack && callConnection) {
+                    const senders = callConnection.getSenders();
+                    const videoSender = senders.find(s => s.track && s.track.kind === "video");
+                    if (videoSender) {
+                        try {
+                            await videoSender.replaceTrack(cameraTrack);
+                        } catch (err) {
+                            console.error("Error restoring camera track:", err);
+                        }
+                    }
+                }
+            }
+
+            set({
+                isScreenSharing: false,
+                screenStream: null
+            });
+            
+            toast.success("Stopped sharing screen");
+        } else {
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const screenTrack = stream.getVideoTracks()[0];
+
+                if (callConnection) {
+                    const senders = callConnection.getSenders();
+                    const videoSender = senders.find(s => s.track && s.track.kind === "video");
+                    if (videoSender) {
+                        await videoSender.replaceTrack(screenTrack);
+                    }
+                }
+
+                screenTrack.onended = () => {
+                    get().stopScreenShareInternal();
+                };
+
+                set({
+                    isScreenSharing: true,
+                    screenStream: stream
+                });
+
+                toast.success("Sharing screen");
+            } catch (err) {
+                console.error("Failed to share screen:", err);
+                toast.error("Failed to share screen.");
+            }
+        }
+    },
+
+    stopScreenShareInternal: async () => {
+        const { isScreenSharing, localStream, screenStream, callConnection } = get();
+        if (!isScreenSharing) return;
+
+        if (screenStream) {
+            screenStream.getTracks().forEach(track => track.stop());
+        }
+
+        if (localStream) {
+            const cameraTrack = localStream.getVideoTracks()[0];
+            if (cameraTrack && callConnection) {
+                const senders = callConnection.getSenders();
+                const videoSender = senders.find(s => s.track && s.track.kind === "video");
+                if (videoSender) {
+                    try {
+                        await videoSender.replaceTrack(cameraTrack);
+                    } catch (err) {}
+                }
+            }
+        }
+
+        set({
+            isScreenSharing: false,
+            screenStream: null
+        });
     },
 
     handleCallSignal: async ({ from, signal }) => {
