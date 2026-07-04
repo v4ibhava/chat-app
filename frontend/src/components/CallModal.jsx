@@ -28,6 +28,7 @@ const CallModal = () => {
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
     const [duration, setDuration] = useState(0);
+    const canScreenShare = typeof navigator !== "undefined" && navigator.mediaDevices && !!navigator.mediaDevices.getDisplayMedia;
 
     // Call duration timer
     useEffect(() => {
@@ -213,12 +214,12 @@ const CallModal = () => {
                 <div className="relative w-full h-full sm:max-w-4xl sm:h-[80vh] bg-zinc-950 sm:rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-zinc-800/60">
                     
                     {/* Media Streaming Workspace */}
-                    <div className="flex-1 relative bg-black flex items-center justify-center">
+                    <div className="flex-1 relative bg-black w-full h-full overflow-hidden">
                         {callType === "video" ? (
                             <>
                                 {/* Remote Participant Video */}
                                 {remoteStream ? (
-                                    <div className="relative w-full h-full">
+                                    <div className="absolute inset-0">
                                         <video 
                                             ref={remoteVideoRef} 
                                             autoPlay 
@@ -242,14 +243,14 @@ const CallModal = () => {
                                         )}
                                     </div>
                                 ) : (
-                                    <div className="flex flex-col items-center gap-4 text-zinc-500">
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-zinc-500 bg-zinc-950">
                                         <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-primary" />
                                         <span>Connecting peer video...</span>
                                     </div>
                                 )}
 
-                                {/* Local PiP Preview (Stacked vertically aspect-ratio on mobile) */}
-                                <div className="absolute bottom-4 right-4 w-24 aspect-[3/4] sm:w-48 sm:aspect-video bg-zinc-900 rounded-xl overflow-hidden border-2 border-zinc-700/80 shadow-2xl z-25">
+                                {/* Local PiP Preview (z-40 so it displays above the remote feed) */}
+                                <div className="absolute bottom-4 right-4 w-24 aspect-[3/4] sm:w-48 sm:aspect-video bg-zinc-900 rounded-xl overflow-hidden border-2 border-zinc-700/80 shadow-2xl z-40">
                                     <video 
                                         ref={localVideoRef} 
                                         autoPlay 
@@ -267,7 +268,7 @@ const CallModal = () => {
                             </>
                         ) : (
                             /* Audio Call UI */
-                            <div className="flex flex-col items-center gap-4 text-center text-white">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-center text-white bg-zinc-950">
                                 <div className="relative flex items-center justify-center w-36 h-36">
                                     <div className="ripple-ring" style={{ '--ripple-color': 'rgba(139, 92, 246, 0.3)' }}></div>
                                     <div className="ripple-ring" style={{ '--ripple-color': 'rgba(139, 92, 246, 0.1)', 'animation-delay': '1.1s' }}></div>
@@ -343,15 +344,17 @@ const CallModal = () => {
                                     {isCameraOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
                                 </button>
 
-                                <button 
-                                    onClick={toggleScreenShare} 
-                                    className={`btn btn-circle btn-lg border border-zinc-800/80 ${
-                                        isScreenSharing ? "bg-blue-500 hover:bg-blue-600 border-none text-white animate-pulse" : "bg-zinc-900 hover:bg-zinc-800 text-zinc-300"
-                                    }`}
-                                    title={isScreenSharing ? "Stop Screen Share" : "Share Screen"}
-                                >
-                                    <Monitor className="w-5 h-5" />
-                                </button>
+                                {canScreenShare && (
+                                    <button 
+                                        onClick={toggleScreenShare} 
+                                        className={`btn btn-circle btn-lg border border-zinc-800/80 ${
+                                            isScreenSharing ? "bg-blue-500 hover:bg-blue-600 border-none text-white animate-pulse" : "bg-zinc-900 hover:bg-zinc-800 text-zinc-300"
+                                        }`}
+                                        title={isScreenSharing ? "Stop Screen Share" : "Share Screen"}
+                                    >
+                                        <Monitor className="w-5 h-5" />
+                                    </button>
+                                )}
                             </>
                         )}
                     </div>
