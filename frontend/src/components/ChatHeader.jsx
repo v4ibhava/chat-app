@@ -68,8 +68,8 @@ const ChatHeader = () => {
                                 onlineUsers.includes(selectedUser._id) ? 'text-green-500 animate-pulse' : 'text-zinc-500'
                             }`}>
                                 {selectedUser.isDeletedAccount ? 'Account Deleted' :
-                                 p2pStatus === 'connected' ? 'Connected (P2P)' :
-                                 p2pStatus === 'connecting' ? 'Connecting P2P...' : 
+                                 p2pStatus === 'connected' ? 'Connected' :
+                                 p2pStatus === 'connecting' ? 'Connecting...' : 
                                  onlineUsers.includes(selectedUser._id) ? 'Online' :
                                  (selectedUser.showLastSeen !== false && selectedUser.lastSeen) ? formatLastSeen(selectedUser.lastSeen) : 'Offline'}
                             </p>

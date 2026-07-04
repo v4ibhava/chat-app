@@ -3,6 +3,7 @@ import { axiosInstance } from "../lib/axios.js";
 import toast from "react-hot-toast";
 import io from "socket.io-client";
 import { useChatStore } from "./useChatStore.js";
+import { playMessageSound } from "../lib/sounds.js";
 
 
 const rawBaseUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.MODE === "development" ? "http://localhost:5000" : "/");
@@ -203,6 +204,32 @@ export const useAuthStore = create((set, get) => ({
             if (chatStore.selectedUser && chatStore.selectedUser._id === payload.removedBy) {
                 chatStore.setSelectedUser(null);
                 toast.error("You are no longer friends with this user.");
+            }
+        });
+
+        socket.on("chat-fallback-message", async (payload) => {
+            const { from, message } = payload;
+            const chatStore = useChatStore.getState();
+            await chatStore.saveLocalMessage(message);
+            playMessageSound();
+            
+            if (chatStore.selectedUser && chatStore.selectedUser._id === from) {
+                const currentMsgs = chatStore.messages;
+                if (!currentMsgs.some(m => m._id === message._id)) {
+                    const processedMsg = (message.fileBlob && message.fileType && message.fileType.startsWith("image/"))
+                        ? { ...message, image: URL.createObjectURL(message.fileBlob) }
+                        : message;
+                    useChatStore.setState({ messages: [...currentMsgs, processedMsg] });
+                }
+            }
+        });
+
+        socket.on("chat-fallback-delete", async (payload) => {
+            const { from, messageId } = payload;
+            const chatStore = useChatStore.getState();
+            await chatStore.deleteLocalMessage(messageId);
+            if (chatStore.selectedUser && chatStore.selectedUser._id === from) {
+                useChatStore.setState({ messages: chatStore.messages.filter(m => m._id !== messageId) });
             }
         });
     },

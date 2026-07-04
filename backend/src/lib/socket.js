@@ -115,6 +115,46 @@ io.on("connection", (socket) => {
         }
     });
 
+    socket.on("chat-fallback-message", async ({ to, message }) => {
+        if (!userId) return;
+        try {
+            const user = await User.findById(userId);
+            if (user && user.friends?.some(f => f.toString() === to?.toString())) {
+                const receiverSocketId = getReceiverSocketId(to);
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit("chat-fallback-message", {
+                        from: userId,
+                        message
+                    });
+                }
+            } else {
+                console.log(`Security Block: User ${userId} tried to send fallback message to non-friend ${to}`);
+            }
+        } catch (err) {
+            console.error("Error in chat-fallback-message check:", err);
+        }
+    });
+
+    socket.on("chat-fallback-delete", async ({ to, messageId }) => {
+        if (!userId) return;
+        try {
+            const user = await User.findById(userId);
+            if (user && user.friends?.some(f => f.toString() === to?.toString())) {
+                const receiverSocketId = getReceiverSocketId(to);
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit("chat-fallback-delete", {
+                        from: userId,
+                        messageId
+                    });
+                }
+            } else {
+                console.log(`Security Block: User ${userId} tried to send fallback delete to non-friend ${to}`);
+            }
+        } catch (err) {
+            console.error("Error in chat-fallback-delete check:", err);
+        }
+    });
+
     socket.on("disconnect", () => {
         console.log(`socket ${socket.id} disconnected`);
         // Find and remove the disconnected user

@@ -18,7 +18,8 @@ const peerConfiguration = {
     iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
-        { urls: "stun:stun2.l.google.com:19302" }
+        { urls: "stun:stun2.l.google.com:19302" },
+        { urls: "stun:stun.services.mozilla.com" }
     ]
 };
 
@@ -694,13 +695,21 @@ export const useChatStore = create((set, get) => ({
         await saveLocalMessage(localMsg);
         set({ messages: [...messages, localMsg] });
 
-        // Send via P2P if active
+        // Send via P2P if active, otherwise fallback to socket.io
         const dc = dataChannels[friendId];
         if (dc && dc.readyState === "open") {
             dc.send(JSON.stringify({
                 type: "chat-message",
                 message: localMsg
             }));
+        } else {
+            const socket = useAuthStore.getState().socket;
+            if (socket && socket.connected) {
+                socket.emit("chat-fallback-message", {
+                    to: friendId,
+                    message: localMsg
+                });
+            }
         }
     },
 
@@ -713,13 +722,21 @@ export const useChatStore = create((set, get) => ({
         await deleteLocalMessage(messageId);
         set({ messages: messages.filter(m => m._id !== messageId) });
 
-        // Send P2P delete event
+        // Send P2P delete event, otherwise fallback to socket.io
         const dc = dataChannels[friendId];
         if (dc && dc.readyState === "open") {
             dc.send(JSON.stringify({
                 type: "delete-message",
                 messageId
             }));
+        } else {
+            const socket = useAuthStore.getState().socket;
+            if (socket && socket.connected) {
+                socket.emit("chat-fallback-delete", {
+                    to: friendId,
+                    messageId
+                });
+            }
         }
     },
 
