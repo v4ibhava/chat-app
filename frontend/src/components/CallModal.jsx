@@ -29,6 +29,7 @@ const CallModal = () => {
     const remoteVideoRef = useRef(null);
     const [duration, setDuration] = useState(0);
     const canScreenShare = typeof navigator !== "undefined" && navigator.mediaDevices && !!navigator.mediaDevices.getDisplayMedia;
+    const hasLocalVideo = localStream && localStream.getVideoTracks().length > 0;
 
     // Call duration timer
     useEffect(() => {
@@ -336,12 +337,12 @@ const CallModal = () => {
                                 <button 
                                     onClick={toggleCamera} 
                                     className={`btn btn-circle btn-lg border border-zinc-800/80 ${
-                                        isCameraOff ? "bg-red-500 border-none text-white" : "bg-zinc-900 hover:bg-zinc-800 text-zinc-300"
+                                        (isCameraOff || !hasLocalVideo) ? "bg-red-500 border-none text-white" : "bg-zinc-900 hover:bg-zinc-800 text-zinc-300"
                                     }`}
-                                    title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
-                                    disabled={isScreenSharing}
+                                    title={!hasLocalVideo ? "Camera not found" : isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
+                                    disabled={isScreenSharing || !hasLocalVideo}
                                 >
-                                    {isCameraOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+                                    {(isCameraOff || !hasLocalVideo) ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
                                 </button>
 
                                 {canScreenShare && (

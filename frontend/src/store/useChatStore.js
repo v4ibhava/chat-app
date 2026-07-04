@@ -776,7 +776,20 @@ export const useChatStore = create((set, get) => ({
                 audio: true,
                 video: type === "video"
             };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+            } catch (mediaErr) {
+                if (constraints.video) {
+                    console.warn("Camera not available, falling back to audio-only stream.");
+                    toast.error("No camera found. Calling with microphone only.");
+                    constraints.video = false;
+                    set({ isCameraOff: true });
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                } else {
+                    throw mediaErr;
+                }
+            }
             set({ localStream: stream });
 
             const pc = new RTCPeerConnection(peerConfiguration);
@@ -833,7 +846,20 @@ export const useChatStore = create((set, get) => ({
                 audio: true,
                 video: callType === "video"
             };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+            } catch (mediaErr) {
+                if (constraints.video) {
+                    console.warn("Camera not available, falling back to audio-only stream.");
+                    toast.error("No camera found. Connecting with microphone only.");
+                    constraints.video = false;
+                    set({ isCameraOff: true });
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                } else {
+                    throw mediaErr;
+                }
+            }
             set({ localStream: stream });
 
             const pc = new RTCPeerConnection(peerConfiguration);
