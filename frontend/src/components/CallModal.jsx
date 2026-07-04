@@ -13,6 +13,7 @@ const CallModal = () => {
         isMuted,
         isCameraOff,
         isRemoteCameraOff,
+        isRemoteScreenSharing,
         acceptCall,
         rejectCall,
         rejectWithBusyMessage,
@@ -62,7 +63,7 @@ const CallModal = () => {
         if (remoteVideoRef.current && remoteStream) {
             remoteVideoRef.current.srcObject = remoteStream;
         }
-    }, [remoteStream, callState]);
+    }, [remoteStream, isRemoteScreenSharing, callState]);
 
     if (callState === "idle" || !activeCallUser) return null;
 
@@ -222,9 +223,9 @@ const CallModal = () => {
                                             ref={remoteVideoRef} 
                                             autoPlay 
                                             playsInline 
-                                            className="w-full h-full object-cover"
+                                            className={`w-full h-full ${isRemoteScreenSharing ? "object-contain bg-zinc-900" : "object-cover"}`}
                                         />
-                                        {isRemoteCameraOff && (
+                                        {isRemoteCameraOff && !isRemoteScreenSharing && (
                                             <div className="absolute inset-0 bg-zinc-950 flex flex-col items-center justify-center gap-4 text-zinc-400 z-10">
                                                 <UserAvatar 
                                                     src={activeCallUser.profilePic} 
@@ -232,6 +233,11 @@ const CallModal = () => {
                                                     size="xl"
                                                 />
                                                 <span className="text-sm font-semibold">{activeCallUser.fullName} turned off their camera</span>
+                                            </div>
+                                        )}
+                                        {isRemoteScreenSharing && (
+                                            <div className="absolute top-4 left-4 bg-blue-500/80 backdrop-blur border border-blue-400 px-3 py-1 rounded-full text-white text-xs font-semibold z-20 pointer-events-none">
+                                                {activeCallUser.fullName} is sharing screen
                                             </div>
                                         )}
                                     </div>

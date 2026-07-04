@@ -30,6 +30,7 @@ export const useChatStore = create((set, get) => ({
     fileProgress: null, // { fileId, fileName, progress, type: "send" | "receive" }
     activeFileTransferId: null,
     isScreenSharing: false,
+    isRemoteScreenSharing: false,
     screenStream: null,
     
     // Calling States
@@ -959,6 +960,7 @@ export const useChatStore = create((set, get) => ({
             isMuted: false,
             isCameraOff: false,
             isRemoteCameraOff: false,
+            isRemoteScreenSharing: false,
             callConnection: null,
             callOfferSdp: null,
             isScreenSharing: false,
@@ -997,7 +999,8 @@ export const useChatStore = create((set, get) => ({
     },
 
     toggleScreenShare: async () => {
-        const { isScreenSharing, localStream, screenStream, callConnection } = get();
+        const { isScreenSharing, localStream, screenStream, callConnection, activeCallUser } = get();
+        const socket = useAuthStore.getState().socket;
 
         if (isScreenSharing) {
             if (screenStream) {
@@ -1019,6 +1022,14 @@ export const useChatStore = create((set, get) => ({
                 }
             }
 
+            // Notify the remote peer
+            if (socket && activeCallUser) {
+                socket.emit("webrtc-signal", {
+                    to: activeCallUser._id,
+                    signal: { type: "call-screen-share-toggle", isScreenSharing: false }
+                });
+            }
+
             set({
                 isScreenSharing: false,
                 screenStream: null
@@ -1027,7 +1038,14 @@ export const useChatStore = create((set, get) => ({
             toast.success("Stopped sharing screen");
         } else {
             try {
-                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                // Request screen stream with safe constraints to ensure stability
+                const stream = await navigator.mediaDevices.getDisplayMedia({ 
+                    video: {
+                        width: { max: 1920 },
+                        height: { max: 1080 },
+                        frameRate: { max: 30 }
+                    }
+                });
                 const screenTrack = stream.getVideoTracks()[0];
 
                 if (callConnection) {
@@ -1041,6 +1059,14 @@ export const useChatStore = create((set, get) => ({
                 screenTrack.onended = () => {
                     get().stopScreenShareInternal();
                 };
+
+                // Notify the remote peer
+                if (socket && activeCallUser) {
+                    socket.emit("webrtc-signal", {
+                        to: activeCallUser._id,
+                        signal: { type: "call-screen-share-toggle", isScreenSharing: true }
+                    });
+                }
 
                 set({
                     isScreenSharing: true,
@@ -1056,7 +1082,7 @@ export const useChatStore = create((set, get) => ({
     },
 
     stopScreenShareInternal: async () => {
-        const { isScreenSharing, localStream, screenStream, callConnection } = get();
+        const { isScreenSharing, localStream, screenStream, callConnection, activeCallUser } = get();
         if (!isScreenSharing) return;
 
         if (screenStream) {
@@ -1074,6 +1100,15 @@ export const useChatStore = create((set, get) => ({
                     } catch (err) {}
                 }
             }
+        }
+
+        // Notify the remote peer
+        const socket = useAuthStore.getState().socket;
+        if (socket && activeCallUser) {
+            socket.emit("webrtc-signal", {
+                to: activeCallUser._id,
+                signal: { type: "call-screen-share-toggle", isScreenSharing: false }
+            });
         }
 
         set({
@@ -1166,6 +1201,10 @@ export const useChatStore = create((set, get) => ({
 
         else if (signal.type === "call-camera-toggle") {
             set({ isRemoteCameraOff: signal.isCameraOff });
+        }
+
+        else if (signal.type === "call-screen-share-toggle") {
+            set({ isRemoteScreenSharing: signal.isScreenSharing });
         }
     },
 
