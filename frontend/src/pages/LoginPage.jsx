@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, Loader2, Mail, Lock, MessageSquare } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
@@ -11,7 +11,20 @@ const LoginPage = () => {
     email: '',
     password: '',
   });
+  const [rememberMe, setRememberMe] = useState(false);
   const { login, isLoggingIn } = useAuthStore();
+
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("zync_saved_email");
+    const savedPassword = localStorage.getItem("zync_saved_password");
+    if (savedEmail && savedPassword) {
+      setFormData({
+        email: savedEmail,
+        password: savedPassword,
+      });
+      setRememberMe(true);
+    }
+  }, []);
 
   const validateForm = () => {
     if (!formData.email.trim()) {
@@ -41,7 +54,15 @@ const LoginPage = () => {
     const success = validateForm();
     if (success === true) {
       const res = await login(formData);
-      if (res && !res.success) {
+      if (res && res.success) {
+        if (rememberMe) {
+          localStorage.setItem("zync_saved_email", formData.email.trim());
+          localStorage.setItem("zync_saved_password", formData.password.trim());
+        } else {
+          localStorage.removeItem("zync_saved_email");
+          localStorage.removeItem("zync_saved_password");
+        }
+      } else if (res && !res.success) {
         setError(res.message);
       }
     }
@@ -114,6 +135,18 @@ const LoginPage = () => {
                   )}
                 </button>
               </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-primary checkbox-sm rounded"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                <span className="text-sm font-medium text-base-content/85">Save Info</span>
+              </label>
             </div>
 
             {error && (
