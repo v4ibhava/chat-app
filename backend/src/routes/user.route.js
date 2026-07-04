@@ -1,6 +1,7 @@
 import express from "express";
 import { protectRoute } from "../middleware/auth.middleware.js";
 import User from "../models/user.model.js";
+import { io, getReceiverSocketId } from "../lib/socket.js";
 
 const router = express.Router();
 
@@ -85,6 +86,14 @@ router.post("/friend-request/:userId", protectRoute, async (req, res) => {
     targetUser.friendRequests.push(req.user._id);
     await targetUser.save();
 
+    const targetSocketId = getReceiverSocketId(userId);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit("friendRequestReceived", {
+        senderId: req.user._id,
+        senderName: req.user.fullName
+      });
+    }
+
     res.json({ message: "Friend request sent" });
   } catch (error) {
     console.log("Error in send friend request:", error.message);
@@ -116,6 +125,18 @@ router.post("/accept-friend/:userId", protectRoute, async (req, res) => {
     await user.save();
     await requester.save();
 
+    const requesterSocketId = getReceiverSocketId(userId);
+    if (requesterSocketId) {
+      io.to(requesterSocketId).emit("friendRequestAccepted", {
+        friendId: req.user._id,
+        friendName: user.fullName
+      });
+    }
+    const userSocketId = getReceiverSocketId(req.user._id);
+    if (userSocketId) {
+      io.to(userSocketId).emit("friendListUpdated");
+    }
+
     res.json({ message: "Friend request accepted" });
   } catch (error) {
     console.log("Error in accept friend:", error.message);
@@ -135,6 +156,11 @@ router.post("/reject-friend/:userId", protectRoute, async (req, res) => {
     user.friendRequests = user.friendRequests.filter(id => id.toString() !== userId);
     await user.save();
 
+    const userSocketId = getReceiverSocketId(req.user._id);
+    if (userSocketId) {
+      io.to(userSocketId).emit("friendRequestsUpdated");
+    }
+
     res.json({ message: "Friend request rejected" });
   } catch (error) {
     console.log("Error in reject friend:", error.message);
@@ -153,6 +179,19 @@ router.post("/remove-friend/:userId", protectRoute, async (req, res) => {
 
     await user.save();
     await friend.save();
+
+    const friendSocketId = getReceiverSocketId(userId);
+    if (friendSocketId) {
+      io.to(friendSocketId).emit("friendRemoved", {
+        removedBy: req.user._id
+      });
+    }
+    const userSocketId = getReceiverSocketId(req.user._id);
+    if (userSocketId) {
+      io.to(userSocketId).emit("friendRemoved", {
+        removedBy: req.user._id
+      });
+    }
 
     res.json({ message: "Friend removed" });
   } catch (error) {

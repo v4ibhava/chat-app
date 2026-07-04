@@ -23,7 +23,13 @@ const Notifications = () => {
         }, 1000);
       });
       const interval = setInterval(fetchFriendRequests, 10000);
-      return () => clearInterval(interval);
+
+      window.addEventListener("refreshFriendRequests", fetchFriendRequests);
+
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener("refreshFriendRequests", fetchFriendRequests);
+      };
     }
   }, [authUser]);
 

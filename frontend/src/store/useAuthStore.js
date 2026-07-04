@@ -172,6 +172,39 @@ export const useAuthStore = create((set, get) => ({
         socket.on("connect_error", (error) => {
             console.error("Socket connection error:", error);
         });
+
+        socket.on("friendRequestReceived", (payload) => {
+            console.log("Friend request received:", payload);
+            toast.success(`New friend request from ${payload.senderName}!`);
+            window.dispatchEvent(new CustomEvent("refreshFriendRequests"));
+        });
+
+        socket.on("friendRequestAccepted", (payload) => {
+            console.log("Friend request accepted:", payload);
+            toast.success(`${payload.friendName} accepted your friend request!`);
+            useChatStore.getState().getUsers();
+            window.dispatchEvent(new CustomEvent("refreshFriendRequests"));
+        });
+
+        socket.on("friendListUpdated", () => {
+            console.log("Friend list updated, refreshing...");
+            useChatStore.getState().getUsers();
+        });
+
+        socket.on("friendRequestsUpdated", () => {
+            console.log("Friend requests updated, refreshing...");
+            window.dispatchEvent(new CustomEvent("refreshFriendRequests"));
+        });
+
+        socket.on("friendRemoved", (payload) => {
+            console.log("Friend removed:", payload);
+            useChatStore.getState().getUsers();
+            const chatStore = useChatStore.getState();
+            if (chatStore.selectedUser && chatStore.selectedUser._id === payload.removedBy) {
+                chatStore.setSelectedUser(null);
+                toast.error("You are no longer friends with this user.");
+            }
+        });
     },
     disconnectSocket: () => {
         const socket = get().socket;

@@ -164,7 +164,7 @@ const ChatContainer = () => {
           </div>
         )}
         
-        {fileProgress && (
+        {fileProgress && fileProgress.peerId === selectedUser?._id && (
           <div className="flex items-center bg-base-200/90 backdrop-blur border border-base-300 rounded-2xl p-3 max-w-sm mx-auto space-x-3 text-xs animate-slide-up shadow-md">
             <div className="animate-pulse w-2.5 h-2.5 rounded-full bg-primary shrink-0"></div>
             <div className="flex-1 min-w-0">

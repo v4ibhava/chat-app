@@ -10,6 +10,7 @@ import { startDialTone, startRingTone, stopTone } from "../lib/ringtone.js";
 const peerConnections = {}; // { friendId: RTCPeerConnection }
 const dataChannels = {}; // { friendId: RTCDataChannel }
 const fileTransfers = {}; // { fileId: { meta, chunks, receivedSize } }
+const activeSendFileTransfers = {}; // { fileId: { file, peerId, messageId, createdAt, text, isSync, resume } }
 let callIceQueue = [];
 let screenAudioMix = null;
 
@@ -203,6 +204,22 @@ export const useChatStore = create((set, get) => ({
             console.log(`P2P data channel with ${friendId} is open`);
             set({ p2pStatus: "connected" });
             get().syncHistories(friendId);
+
+            // Check for any pending file transfers to this friend to resume
+            Object.keys(activeSendFileTransfers).forEach(fId => {
+                const tx = activeSendFileTransfers[fId];
+                if (tx.peerId === friendId) {
+                    console.log(`Resuming file transfer query for ${fId} with ${friendId}`);
+                    try {
+                        dc.send(JSON.stringify({
+                            type: "file-resume-query",
+                            fileId: fId
+                        }));
+                    } catch (e) {
+                        console.error("Error sending file-resume-query:", e);
+                    }
+                }
+            });
         };
 
         dc.onclose = () => {
@@ -298,6 +315,84 @@ export const useChatStore = create((set, get) => ({
             }
         }
 
+        if (data.type === "file-resume-query") {
+            const { fileId } = data;
+            const transfer = fileTransfers[fileId];
+            const dc = dataChannels[friendId];
+            if (!dc || dc.readyState !== "open") return;
+
+            if (transfer) {
+                console.log(`Received file-resume-query for active transfer ${fileId}, reporting ${transfer.receivedSize} bytes`);
+                dc.send(JSON.stringify({
+                    type: "file-resume-response",
+                    fileId,
+                    receivedSize: transfer.receivedSize,
+                    needsMeta: false
+                }));
+                set({ 
+                    fileProgress: { 
+                        fileId, 
+                        peerId: friendId, 
+                        fileName: transfer.meta.fileName, 
+                        progress: Math.min(100, Math.round((transfer.receivedSize / transfer.meta.fileSize) * 100)), 
+                        type: "receive" 
+                    } 
+                });
+            } else {
+                console.log(`Received file-resume-query for unknown transfer ${fileId}, reporting 0 bytes and request meta`);
+                dc.send(JSON.stringify({
+                    type: "file-resume-response",
+                    fileId,
+                    receivedSize: 0,
+                    needsMeta: true
+                }));
+            }
+        }
+
+        if (data.type === "file-resume-response") {
+            const { fileId, receivedSize, needsMeta } = data;
+            const tx = activeSendFileTransfers[fileId];
+            if (tx && typeof tx.resume === "function") {
+                console.log(`Received file-resume-response for ${fileId}, resuming from offset ${receivedSize}`);
+                const dc = dataChannels[friendId];
+                if (!dc || dc.readyState !== "open") return;
+
+                set({ 
+                    activeFileTransferId: fileId,
+                    fileProgress: { 
+                        fileId, 
+                        peerId: friendId, 
+                        fileName: tx.file.name, 
+                        progress: Math.min(100, Math.round((receivedSize / tx.file.size) * 100)), 
+                        type: "send" 
+                    } 
+                });
+
+                if (needsMeta) {
+                    dc.send(JSON.stringify({
+                        type: "file-meta",
+                        meta: {
+                            fileId,
+                            fileName: tx.file.name,
+                            fileSize: tx.file.size,
+                            fileType: tx.file.type,
+                            messageId: tx.messageId,
+                            senderId: myId,
+                            receiverId: friendId,
+                            createdAt: tx.createdAt,
+                            text: tx.text,
+                            isSync: tx.isSync
+                        }
+                    }));
+                    setTimeout(() => {
+                        tx.resume(receivedSize);
+                    }, 200);
+                } else {
+                    tx.resume(receivedSize);
+                }
+            }
+        }
+
         if (data.type === "chat-message") {
             const msg = data.message;
             await saveLocalMessage(msg);
@@ -330,7 +425,7 @@ export const useChatStore = create((set, get) => ({
                 receivedSize: 0
             };
             if (!isSync) {
-                set({ fileProgress: { fileId, fileName, progress: 0, type: "receive" } });
+                set({ fileProgress: { fileId, peerId: senderId, fileName, progress: 0, type: "receive" } });
             }
         }
 
@@ -398,7 +493,7 @@ export const useChatStore = create((set, get) => ({
         if (!existingMessageId) {
             set({ 
                 activeFileTransferId: fileId,
-                fileProgress: { fileId, fileName: file.name, progress: 0, type: "send" } 
+                fileProgress: { fileId, peerId: friendId, fileName: file.name, progress: 0, type: "send" } 
             });
         }
 
@@ -406,14 +501,16 @@ export const useChatStore = create((set, get) => ({
 
         const readSlice = (o) => {
             // Check if transfer was cancelled by user
-            if (!existingMessageId && get().activeFileTransferId !== fileId) {
+            if (!existingMessageId && get().activeFileTransferId !== fileId && get().activeFileTransferId !== null) {
                 console.log("File sending cancelled by user.");
+                delete activeSendFileTransfers[fileId];
                 return;
             }
 
-            if (dc.readyState !== "open") {
+            const activeDc = dataChannels[friendId];
+            if (!activeDc || activeDc.readyState !== "open") {
                 console.error("Data channel closed during file transfer.");
-                toast.error("Connection lost. File transfer failed.");
+                toast.error("Connection lost. File transfer paused.");
                 if (!existingMessageId) set({ fileProgress: null, activeFileTransferId: null });
                 return;
             }
@@ -437,8 +534,16 @@ export const useChatStore = create((set, get) => ({
                 chunkBuffer.set(new Uint8Array(headerBuffer), 0);
                 chunkBuffer.set(new Uint8Array(chunkData), headerBuffer.byteLength);
 
+                const currentDc = dataChannels[friendId];
+                if (!currentDc || currentDc.readyState !== "open") {
+                    console.error("Data channel lost before sending chunk.");
+                    toast.error("Connection lost. File transfer paused.");
+                    if (!existingMessageId) set({ fileProgress: null, activeFileTransferId: null });
+                    return;
+                }
+
                 try {
-                    dc.send(chunkBuffer.buffer);
+                    currentDc.send(chunkBuffer.buffer);
                 } catch (err) {
                     console.error("Error sending chunk:", err);
                     toast.error("Failed to send chunk. Connection lost.");
@@ -449,13 +554,13 @@ export const useChatStore = create((set, get) => ({
                 const newOffset = o + chunkSize;
                 const progress = Math.min(100, Math.round((newOffset / file.size) * 100));
                 if (!existingMessageId) {
-                    set({ fileProgress: { fileId, fileName: file.name, progress, type: "send" } });
+                    set({ fileProgress: { fileId, peerId: friendId, fileName: file.name, progress, type: "send" } });
                 }
 
                 if (newOffset < file.size) {
-                    if (dc.bufferedAmount > dc.bufferedAmountLowThreshold) {
-                        dc.onbufferedamountlow = () => {
-                            dc.onbufferedamountlow = null;
+                    if (currentDc.bufferedAmount > currentDc.bufferedAmountLowThreshold) {
+                        currentDc.onbufferedamountlow = () => {
+                            currentDc.onbufferedamountlow = null;
                             readSlice(newOffset);
                         };
                     } else {
@@ -463,6 +568,7 @@ export const useChatStore = create((set, get) => ({
                     }
                 } else {
                     // Send complete! Save locally as Blob URL
+                    delete activeSendFileTransfers[fileId];
                     const localMsg = {
                         _id: messageId,
                         chatKey: `${myId}_${friendId}`,
@@ -484,6 +590,20 @@ export const useChatStore = create((set, get) => ({
             };
             reader.readAsArrayBuffer(slice);
         };
+
+        activeSendFileTransfers[fileId] = {
+            file,
+            peerId: friendId,
+            messageId,
+            createdAt,
+            text,
+            isSync: !!existingMessageId,
+            resume: (offset) => {
+                console.log(`Resuming file transfer ${fileId} at offset ${offset}`);
+                readSlice(offset);
+            }
+        };
+
         readSlice(0);
     },
 
@@ -507,7 +627,7 @@ export const useChatStore = create((set, get) => ({
 
         if (!isSync) {
             const progress = Math.min(100, Math.round((transfer.receivedSize / transfer.meta.fileSize) * 100));
-            set({ fileProgress: { fileName: transfer.meta.fileName, progress, type: "receive" } });
+            set({ fileProgress: { fileId, peerId: friendId, fileName: transfer.meta.fileName, progress, type: "receive" } });
         }
 
         if (transfer.receivedSize >= transfer.meta.fileSize) {
