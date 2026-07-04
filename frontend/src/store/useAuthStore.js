@@ -35,7 +35,6 @@ export const useAuthStore = create((set, get) => ({
         try {
             const res = await axiosInstance.post("/auth/signup", data);
             set({ authUser: res.data });
-            toast.success(`Welcome, ${res.data.fullName}! 🎉 Account created successfully!`);
             get().connectSocket();
             return { success: true };
         } catch (error) {
@@ -50,7 +49,6 @@ export const useAuthStore = create((set, get) => ({
         try {
             const res = await axiosInstance.post("/auth/login", data);
             set({ authUser: res.data });
-            toast.success(`Welcome back, ${res.data.fullName}! 👋`);
 
             get().connectSocket();
             return { success: true };
