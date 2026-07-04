@@ -10,6 +10,7 @@ import { startDialTone, startRingTone, stopTone } from "../lib/ringtone.js";
 const peerConnections = {}; // { friendId: RTCPeerConnection }
 const dataChannels = {}; // { friendId: RTCDataChannel }
 const fileTransfers = {}; // { fileId: { meta, chunks, receivedSize } }
+let callIceQueue = [];
 
 const peerConfiguration = {
     iceServers: [
@@ -861,15 +862,15 @@ export const useChatStore = create((set, get) => ({
 
             await pc.setRemoteDescription(new RTCSessionDescription(callOfferSdp));
 
-            if (pc.callIceQueue && pc.callIceQueue.length > 0) {
-                for (const cand of pc.callIceQueue) {
+            if (callIceQueue && callIceQueue.length > 0) {
+                for (const cand of callIceQueue) {
                     try {
                         await pc.addIceCandidate(new RTCIceCandidate(cand));
                     } catch (e) {
                         console.error("Error adding queued call candidate:", e);
                     }
                 }
-                pc.callIceQueue = [];
+                callIceQueue = [];
             }
 
             const answer = await pc.createAnswer();
@@ -935,6 +936,7 @@ export const useChatStore = create((set, get) => ({
 
     cleanupCallState: () => {
         stopTone();
+        callIceQueue = [];
         const { localStream, callConnection, screenStream } = get();
 
         if (localStream) {
@@ -1153,13 +1155,13 @@ export const useChatStore = create((set, get) => ({
                     stopTone();
                     set({ callState: "connected" });
 
-                    if (pc.callIceQueue && pc.callIceQueue.length > 0) {
-                        for (const cand of pc.callIceQueue) {
+                    if (callIceQueue && callIceQueue.length > 0) {
+                        for (const cand of callIceQueue) {
                             try {
                                 await pc.addIceCandidate(new RTCIceCandidate(cand));
                             } catch (e) {}
                         }
-                        pc.callIceQueue = [];
+                        callIceQueue = [];
                     }
                 } catch (e) {
                     console.error("Error setting call remote description:", e);
@@ -1169,17 +1171,14 @@ export const useChatStore = create((set, get) => ({
 
         else if (signal.type === "call-candidate") {
             const pc = callConnection;
-            if (pc) {
-                if (pc.remoteDescription && pc.remoteDescription.type) {
-                    try {
-                        await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
-                    } catch (e) {
-                        console.error("Error adding call candidate:", e);
-                    }
-                } else {
-                    pc.callIceQueue = pc.callIceQueue || [];
-                    pc.callIceQueue.push(signal.candidate);
+            if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+                } catch (e) {
+                    console.error("Error adding call candidate:", e);
                 }
+            } else {
+                callIceQueue.push(signal.candidate);
             }
         }
 
