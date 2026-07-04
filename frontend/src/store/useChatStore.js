@@ -38,6 +38,7 @@ export const useChatStore = create((set, get) => ({
     remoteStream: null,
     isMuted: false,
     isCameraOff: false,
+    isRemoteCameraOff: false,
     callConnection: null,
 
     getUsers: async () => {
@@ -760,7 +761,8 @@ export const useChatStore = create((set, get) => ({
             callType: type,
             activeCallUser: user,
             isMuted: false,
-            isCameraOff: false
+            isCameraOff: false,
+            isRemoteCameraOff: false
         });
 
         startDialTone();
@@ -950,6 +952,7 @@ export const useChatStore = create((set, get) => ({
             remoteStream: null,
             isMuted: false,
             isCameraOff: false,
+            isRemoteCameraOff: false,
             callConnection: null,
             callOfferSdp: null
         });
@@ -966,12 +969,22 @@ export const useChatStore = create((set, get) => ({
     },
 
     toggleCamera: () => {
-        const { localStream, isCameraOff } = get();
+        const { localStream, isCameraOff, activeCallUser } = get();
         if (localStream) {
             localStream.getVideoTracks().forEach(track => {
                 track.enabled = isCameraOff;
             });
-            set({ isCameraOff: !isCameraOff });
+            const newIsCameraOff = !isCameraOff;
+            set({ isCameraOff: newIsCameraOff });
+
+            // Notify the remote peer of the camera status
+            const socket = useAuthStore.getState().socket;
+            if (socket && activeCallUser) {
+                socket.emit("webrtc-signal", {
+                    to: activeCallUser._id,
+                    signal: { type: "call-camera-toggle", isCameraOff: newIsCameraOff }
+                });
+            }
         }
     },
 
@@ -1055,6 +1068,10 @@ export const useChatStore = create((set, get) => ({
             stopTone();
             toast.error("Call ended.");
             get().cleanupCallState();
+        }
+
+        else if (signal.type === "call-camera-toggle") {
+            set({ isRemoteCameraOff: signal.isCameraOff });
         }
     },
 

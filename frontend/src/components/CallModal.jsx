@@ -12,6 +12,7 @@ const CallModal = () => {
         remoteStream,
         isMuted,
         isCameraOff,
+        isRemoteCameraOff,
         acceptCall,
         rejectCall,
         rejectWithBusyMessage,
@@ -207,12 +208,24 @@ const CallModal = () => {
                             <>
                                 {/* Remote Participant Video */}
                                 {remoteStream ? (
-                                    <video 
-                                        ref={remoteVideoRef} 
-                                        autoPlay 
-                                        playsInline 
-                                        className="w-full h-full object-cover"
-                                    />
+                                    <div className="relative w-full h-full">
+                                        <video 
+                                            ref={remoteVideoRef} 
+                                            autoPlay 
+                                            playsInline 
+                                            className="w-full h-full object-cover"
+                                        />
+                                        {isRemoteCameraOff && (
+                                            <div className="absolute inset-0 bg-zinc-950 flex flex-col items-center justify-center gap-4 text-zinc-400 z-10">
+                                                <UserAvatar 
+                                                    src={activeCallUser.profilePic} 
+                                                    alt={activeCallUser.fullName} 
+                                                    size="xl"
+                                                />
+                                                <span className="text-sm font-semibold">{activeCallUser.fullName} turned off their camera</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 ) : (
                                     <div className="flex flex-col items-center gap-4 text-zinc-500">
                                         <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-primary" />

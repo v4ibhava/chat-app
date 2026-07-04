@@ -7,6 +7,7 @@ import { toast } from "react-hot-toast";
 
 const SignUpPage = () => {
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -17,35 +18,41 @@ const SignUpPage = () => {
 
   const validateForm = () => {
     if (!formData.fullName.trim()) {
-      toast.error("Full name is required");
+      setError("Full name is required");
       return false;
     }
     if (!formData.email.trim()) {
-      toast.error("Email is required");
+      setError("Email is required");
       return false;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email.trim())) {
-      toast.error("Invalid email format");
+      setError("Invalid email format");
       return false;
     }
     if (!formData.password.trim()) {
-      toast.error("Password is required");
+      setError("Password is required");
       return false;
     }
     if (formData.password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+      setError("Password must be at least 6 characters");
       return false;
     }
     return true;
   };
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
 
-    const success = validateForm()
+    const success = validateForm();
 
-    if(success===true) signup(formData);
+    if (success === true) {
+      const res = await signup(formData);
+      if (res && !res.success) {
+        setError(res.message);
+      }
+    }
   };
 
   return (
@@ -77,9 +84,10 @@ const SignUpPage = () => {
                   className="input input-bordered w-full pl-10"
                   placeholder="Kimi No Nawa"
                   value={formData.fullName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, fullName: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setError("");
+                    setFormData({ ...formData, fullName: e.target.value });
+                  }}
                 />
               </div>
             </div>
@@ -96,9 +104,10 @@ const SignUpPage = () => {
                   className="input input-bordered w-full pl-10"
                   placeholder="you@mail.com"
                   value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setError("");
+                    setFormData({ ...formData, email: e.target.value });
+                  }}
                 />
               </div>
             </div>
@@ -115,9 +124,10 @@ const SignUpPage = () => {
                   className="input input-bordered w-full pl-10 pr-10"
                   placeholder="********"
                   value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setError("");
+                    setFormData({ ...formData, password: e.target.value });
+                  }}
                 />
                 <button
                   type="button"
@@ -132,6 +142,13 @@ const SignUpPage = () => {
                 </button>
               </div>
             </div>
+
+            {error && (
+              <div className="text-red-500 text-sm font-semibold text-center bg-red-50 dark:bg-red-950/10 p-3 rounded-lg border border-red-200 dark:border-red-900/20">
+                {error}
+              </div>
+            )}
+
             <button type="submit" className="btn btn-primary w-full" disabled={isSignUp}>
               {isSignUp ? (
                 <>

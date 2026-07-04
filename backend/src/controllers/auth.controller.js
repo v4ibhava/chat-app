@@ -46,8 +46,10 @@ export const signup = async (req, res) => {
             generateToken(newUser._id, res)
             await newUser.save();
 
-            // Send welcome email
-            await sendWelcomeEmail(newUser.email, newUser.fullName);
+            // Send welcome email asynchronously so it doesn't block the response
+            sendWelcomeEmail(newUser.email, newUser.fullName).catch(err => {
+                console.error("Error sending welcome email:", err);
+            });
 
             res.status(201).json({
                 _id: newUser._id,
@@ -350,6 +352,7 @@ export const deleteAccount = async (req, res) => {
         user.isDeletedAccount = true;
         user.fullName = "Deleted User";
         user.email = `deleted_${userId}@zync.com`; // Releases original email address
+        user.username = `deleted_${userId}`; // Releases original username
         user.password = `deleted_account_placeholder_${Math.random()}`; // Prevents future logins
         user.profilePic = "";
         user.friendRequests = [];

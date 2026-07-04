@@ -52,6 +52,7 @@ const App = () => {
         <Route path="/friends" element={authUser ? <FriendsPage /> : <Navigate to="/login"/>} />
       </Routes>
       <CallModal />
+      <Toaster />
     </div>
   );
 };

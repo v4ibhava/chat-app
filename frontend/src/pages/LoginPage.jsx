@@ -6,15 +6,45 @@ import AuthImagePattern from '../components/AuthImagePattern.jsx';
 
 const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
   const { login, isLoggingIn } = useAuthStore();
 
+  const validateForm = () => {
+    if (!formData.email.trim()) {
+      setError("Email is required");
+      return false;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) {
+      setError("Invalid email format");
+      return false;
+    }
+    if (!formData.password.trim()) {
+      setError("Password is required");
+      return false;
+    }
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    login(formData);
+    setError("");
+
+    const success = validateForm();
+    if (success === true) {
+      const res = await login(formData);
+      if (res && !res.success) {
+        setError(res.message);
+      }
+    }
   };
 
   return (
@@ -47,7 +77,10 @@ const LoginPage = () => {
                   className="input input-bordered w-full pl-10"
                   placeholder="you@mail.com"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => {
+                    setError("");
+                    setFormData({ ...formData, email: e.target.value });
+                  }}
                 />
               </div>
             </div>
@@ -64,7 +97,10 @@ const LoginPage = () => {
                   className="input input-bordered w-full pl-10 pr-10"
                   placeholder="********"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={(e) => {
+                    setError("");
+                    setFormData({ ...formData, password: e.target.value });
+                  }}
                 />
                 <button
                   type="button"
@@ -79,6 +115,13 @@ const LoginPage = () => {
                 </button>
               </div>
             </div>
+
+            {error && (
+              <div className="text-red-500 text-sm font-semibold text-center bg-red-50 dark:bg-red-950/10 p-3 rounded-lg border border-red-200 dark:border-red-900/20">
+                {error}
+              </div>
+            )}
+
             <button
               type="submit"
               className="btn btn-primary w-full"
