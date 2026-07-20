@@ -7,6 +7,7 @@ import SettingsPage from './pages/SettingsPage';
 import ProfilePage from './pages/ProfilePage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import FriendsPage from './pages/FriendsPage';
+import GroupInvitePage from './pages/GroupInvitePage';
 import Navbar from './components/Navbar';
 import CallModal from './components/CallModal';
 import { useAuthStore } from './store/useAuthStore.js';
@@ -37,7 +38,7 @@ const App = () => {
     ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
     : theme;
 
-  const showNavbar = !["/login", "/signup", "/forgot-password"].includes(location.pathname);
+  const showNavbar = !["/login", "/signup", "/forgot-password"].includes(location.pathname) && !location.pathname.startsWith("/invite/");
 
   return (
     <div data-theme={resolvedTheme} className="min-h-screen">
@@ -50,6 +51,7 @@ const App = () => {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to="/login"/>} />
         <Route path="/friends" element={authUser ? <FriendsPage /> : <Navigate to="/login"/>} />
+        <Route path="/invite/:inviteCode" element={authUser ? <GroupInvitePage /> : <Navigate to="/login"/>} />
       </Routes>
       <CallModal />
       <Toaster />

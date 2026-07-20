@@ -77,7 +77,7 @@ const ChatHeader = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-1 sm:gap-2">
-                    {onlineUsers.includes(selectedUser._id) && !selectedUser.isDeletedAccount && (
+                    {!selectedUser.isDeletedAccount && (
                         <>
                             <button 
                                 onClick={() => startCall(selectedUser, "audio")}

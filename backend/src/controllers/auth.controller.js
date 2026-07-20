@@ -378,3 +378,17 @@ export const deleteAccount = async (req, res) => {
         res.status(500).json({ message: "Internal Server Error" });
     }
 }
+
+export const updatePublicKey = async (req, res) => {
+    try {
+        const { publicKeyJWK } = req.body;
+        if (!publicKeyJWK) {
+            return res.status(400).json({ message: "publicKeyJWK is required" });
+        }
+        const user = await User.findByIdAndUpdate(req.user._id, { publicKeyJWK }, { new: true }).select("-password");
+        res.status(200).json(user);
+    } catch (error) {
+        console.log("Error in updatePublicKey controller:", error.message);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+}

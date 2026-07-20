@@ -2,6 +2,8 @@ import { Server } from "socket.io";
 import http from "http";
 import express from "express";
 import User from "../models/user.model.js";
+import OfflineMessage from "../models/offlineMessage.model.js";
+import Group from "../models/group.model.js";
 
 
 const app = express();
@@ -47,6 +49,22 @@ const updateLastSeen = async (userId) => {
     }
 };
 
+const deliverOfflineMessages = async (userId, socket) => {
+    try {
+        const offlineMsgs = await OfflineMessage.find({ receiverId: userId }).sort({ createdAt: 1 });
+        if (offlineMsgs.length > 0) {
+            socket.emit("offline-messages-deliver", offlineMsgs.map(m => ({
+                _id: m._id,
+                senderId: m.senderId,
+                receiverId: m.receiverId,
+                messageData: m.messageData
+            })));
+        }
+    } catch (err) {
+        console.error("Error delivering offline messages:", err);
+    }
+};
+
 io.on("connection", (socket) => {
     console.log(`socket ${socket.id} connected`);
 
@@ -55,6 +73,7 @@ io.on("connection", (socket) => {
         userSocketMap[userId] = socket.id;
         io.emit("getOnlineUsers", Object.keys(userSocketMap));
         updateLastSeen(userId);
+        deliverOfflineMessages(userId, socket);
     }
 
     socket.on("userReconnected", (userId) => {
@@ -62,6 +81,16 @@ io.on("connection", (socket) => {
             userSocketMap[userId] = socket.id;
             io.emit("getOnlineUsers", Object.keys(userSocketMap));
             updateLastSeen(userId);
+            deliverOfflineMessages(userId, socket);
+        }
+    });
+
+    socket.on("acknowledge-offline-messages", async (messageDbIds) => {
+        if (!Array.isArray(messageDbIds)) return;
+        try {
+            await OfflineMessage.deleteMany({ _id: { $in: messageDbIds } });
+        } catch (err) {
+            console.error("Error deleting acknowledged offline messages:", err);
         }
     });
 
@@ -106,6 +135,22 @@ io.on("connection", (socket) => {
                         from: userId,
                         signal
                     });
+                } else if (signal.type === "call-offer") {
+                    // Recipient is offline, create a missed call system message
+                    const systemMessage = {
+                        _id: "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9),
+                        chatKey: `${to}_${userId}`,
+                        senderId: userId,
+                        receiverId: to,
+                        text: `Missed ${signal.callType || "audio"} call`,
+                        isSystem: true,
+                        createdAt: new Date().toISOString()
+                    };
+                    await OfflineMessage.create({
+                        senderId: userId,
+                        receiverId: to,
+                        messageData: systemMessage
+                    });
                 }
             } else {
                 console.log(`Security Block: User ${userId} tried to signal non-friend ${to}`);
@@ -125,6 +170,13 @@ io.on("connection", (socket) => {
                     io.to(receiverSocketId).emit("chat-fallback-message", {
                         from: userId,
                         message
+                    });
+                } else {
+                    // Recipient is offline, store temporarily on server
+                    await OfflineMessage.create({
+                        senderId: userId,
+                        receiverId: to,
+                        messageData: message
                     });
                 }
             } else {
@@ -155,6 +207,47 @@ io.on("connection", (socket) => {
         }
     });
 
+    socket.on("join-group-rooms", async (groupIds) => {
+        if (!Array.isArray(groupIds)) return;
+        groupIds.forEach(id => {
+            socket.join(`group_${id}`);
+            console.log(`Socket ${socket.id} joined group room: group_${id}`);
+        });
+    });
+
+    socket.on("group-message", async ({ groupId, message }) => {
+        if (!userId) return;
+        try {
+            // Verify group membership
+            const group = await Group.findById(groupId);
+            if (group && group.members.includes(userId)) {
+                // Broadcast E2EE encrypted message to all online group members in the room
+                socket.to(`group_${groupId}`).emit("group-message", {
+                    groupId,
+                    message,
+                    senderId: userId
+                });
+            }
+        } catch (err) {
+            console.error("Error broadcasting group message:", err);
+        }
+    });
+
+    socket.on("group-key-exchange", async ({ toUserId, payload }) => {
+        if (!userId) return;
+        try {
+            const receiverSocketId = getReceiverSocketId(toUserId);
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("group-key-exchange", {
+                    fromUserId: userId,
+                    payload
+                });
+            }
+        } catch (err) {
+            console.error("Error in group key exchange routing:", err);
+        }
+    });
+
     socket.on("disconnect", () => {
         console.log(`socket ${socket.id} disconnected`);
         // Find and remove the disconnected user
@@ -171,3 +264,4 @@ io.on("connection", (socket) => {
 });
 
 export { io, app, server };
+
