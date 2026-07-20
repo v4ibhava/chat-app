@@ -37,6 +37,11 @@ const groupSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
         }],
+        encryptedKeys: {
+            type: Map,
+            of: Object,
+            default: {},
+        },
     },
     { timestamps: true }
 );

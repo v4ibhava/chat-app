@@ -3,7 +3,7 @@ import User from "../models/user.model.js";
 
 export const createGroup = async (req, res) => {
     try {
-        const { encryptedName, encryptedDesc, encryptedAvatar, iv, members } = req.body;
+        const { encryptedName, encryptedDesc, encryptedAvatar, iv, members, encryptedKeys } = req.body;
         if (!encryptedName || !iv || !Array.isArray(members) || members.length < 1) {
             return res.status(400).json({ message: "Invalid group configuration fields" });
         }
@@ -25,6 +25,11 @@ export const createGroup = async (req, res) => {
             members: groupMembers,
             inviteCode,
         });
+
+        // Store encrypted keys on the group model so offline users can safely query them on startup
+        if (encryptedKeys) {
+            group.encryptedKeys = encryptedKeys; // Map: { [userId]: { iv, ciphertext } }
+        }
 
         await group.save();
         const populated = await Group.findById(group._id).populate("members", "fullName username profilePic publicKeyJWK");
@@ -72,7 +77,7 @@ export const joinRequest = async (req, res) => {
 
 export const approveRequest = async (req, res) => {
     try {
-        const { groupId, requesterId } = req.body;
+        const { groupId, requesterId, encryptedKeys } = req.body;
         const group = await Group.findById(groupId);
         if (!group) {
             return res.status(404).json({ message: "Group not found" });
@@ -89,6 +94,16 @@ export const approveRequest = async (req, res) => {
 
         group.pendingRequests = group.pendingRequests.filter(id => id.toString() !== requesterId);
         group.members.push(requesterId);
+
+        // Store encrypted keys for offline synchronization
+        if (encryptedKeys) {
+            if (!group.encryptedKeys) group.encryptedKeys = {};
+            // Merge or assign key maps
+            for (const [k, v] of Object.entries(encryptedKeys)) {
+                group.encryptedKeys.set(k, v);
+            }
+        }
+
         await group.save();
 
         const populated = await Group.findById(groupId)

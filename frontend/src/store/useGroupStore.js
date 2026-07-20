@@ -70,9 +70,36 @@ export const useGroupStore = create((set, get) => ({
 
             // Decrypt group metadata
             const decryptedGroups = [];
+            const myId = useAuthStore.getState().authUser?._id;
+
             for (const group of groupsList) {
                 try {
-                    const localJWK = await getGroupKeyLocal(group._id);
+                    let localJWK = await getGroupKeyLocal(group._id);
+
+                    // If key is missing locally, check if there's an encrypted key on the server we can decrypt
+                    if (!localJWK && group.encryptedKeys && group.encryptedKeys[myId]) {
+                        try {
+                            const encryptedKeyObj = group.encryptedKeys[myId];
+                            const myKeypair = await getLocalKeypair(myId);
+
+                            // Find the admin/sender who created the key from group members list
+                            const creator = group.members.find(m => group.admins.includes(m._id) && m.publicKeyJWK);
+                            if (myKeypair && creator && creator.publicKeyJWK) {
+                                const creatorPub = await importPublicKey(creator.publicKeyJWK);
+                                const sharedKey = await deriveSharedKey(myKeypair.privateKey, creatorPub);
+                                const decrypted = await decryptPayload(encryptedKeyObj.iv, encryptedKeyObj.ciphertext, sharedKey);
+                                
+                                if (decrypted && decrypted.groupKeyJWK) {
+                                    await saveGroupKeyLocal(group._id, decrypted.groupKeyJWK);
+                                    localJWK = decrypted.groupKeyJWK;
+                                    console.log(`Successfully synced and decrypted offline key for group ${group._id}`);
+                                }
+                            }
+                        } catch (decryptErr) {
+                            console.error(`Failed to decrypt startup group key for group ${group._id}:`, decryptErr);
+                        }
+                    }
+
                     if (localJWK) {
                         const groupKey = await importGroupKey(localJWK);
                         const name = await decryptGroupMetadata(group.encryptedName, group.iv, groupKey);
@@ -114,36 +141,50 @@ export const useGroupStore = create((set, get) => ({
             const encName = await encryptGroupMetadata(name, groupKey);
             const encDesc = await encryptGroupMetadata("Group Chat room", groupKey);
 
-            // 3. Post Group to server
+            // 3. Encrypt group key for each member using ECDH (for offline access/startup sync)
+            const encryptedKeys = {};
+            const myKeypair = await getLocalKeypair(myId);
+
+            // Fetch and cache member profiles to ensure public keys are loaded
+            const usersRes = await axiosInstance.get("/messages/users");
+            const allUsers = usersRes.data;
+
+            for (const memberId of memberIds) {
+                const member = allUsers.find(u => u._id === memberId);
+                if (member && member.publicKeyJWK && myKeypair) {
+                    try {
+                        const remotePub = await importPublicKey(member.publicKeyJWK);
+                        const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
+                        const payload = await encryptPayload({ groupKeyJWK }, sharedKey);
+                        encryptedKeys[memberId] = payload;
+                    } catch (e) {
+                        console.error("Failed to encrypt group key offline map:", e);
+                    }
+                }
+            }
+
+            // 4. Post Group with encrypted keys to server
             const res = await axiosInstance.post("/groups", {
                 encryptedName: encName.ciphertext,
                 encryptedDesc: encDesc.ciphertext,
                 iv: encName.iv,
-                members: memberIds
+                members: memberIds,
+                encryptedKeys
             });
 
             const newGroup = res.data;
             await saveGroupKeyLocal(newGroup._id, groupKeyJWK);
 
-            // 4. E2EE Key Distribution over socket using ECDH
+            // 5. E2EE Key Distribution over socket using ECDH (for instant online delivery)
             const socket = useAuthStore.getState().socket;
             if (socket) {
-                const myKeypair = await getLocalKeypair(myId);
                 for (const member of newGroup.members) {
                     if (member._id === myId) continue;
-                    if (!member.publicKeyJWK) continue;
-                    
-                    try {
-                        const remotePub = await importPublicKey(member.publicKeyJWK);
-                        const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
-                        const payload = await encryptPayload({ groupKeyJWK, groupId: newGroup._id }, sharedKey);
-
+                    if (encryptedKeys[member._id]) {
                         socket.emit("group-key-exchange", {
                             toUserId: member._id,
-                            payload
+                            payload: encryptedKeys[member._id]
                         });
-                    } catch (e) {
-                        console.error(`Failed key exchange to member ${member.fullName}:`, e);
                     }
                 }
             }
@@ -280,25 +321,38 @@ export const useGroupStore = create((set, get) => ({
 
     approveRequest: async (groupId, requesterId) => {
         try {
-            const res = await axiosInstance.post("/groups/approve", { groupId, requesterId });
+            const myId = useAuthStore.getState().authUser?._id;
+            const localJWK = await getGroupKeyLocal(groupId);
+            
+            // Fetch group member lists to locate requester profile
+            const groupsRes = await axiosInstance.get("/groups");
+            const targetGroup = groupsRes.data.find(g => g._id === groupId);
+            const targetMember = targetGroup?.pendingRequests?.find(m => m._id === requesterId);
+
+            let encryptedKeys = {};
+            if (targetMember && targetMember.publicKeyJWK && localJWK) {
+                try {
+                    const myKeypair = await getLocalKeypair(myId);
+                    const remotePub = await importPublicKey(targetMember.publicKeyJWK);
+                    const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
+                    const payload = await encryptPayload({ groupKeyJWK: localJWK, groupId }, sharedKey);
+                    encryptedKeys[requesterId] = payload;
+                } catch (e) {
+                    console.error("Failed to encrypt group key during approval:", e);
+                }
+            }
+
+            const res = await axiosInstance.post("/groups/approve", { groupId, requesterId, encryptedKeys });
             toast.success("User approved to group!");
             
-            // Distribute group key to newly approved member
+            // Distribute group key over socket if user is online immediately
             const updatedGroup = res.data;
-            const myId = useAuthStore.getState().authUser?._id;
-            const targetMember = updatedGroup.members.find(m => m._id === requesterId);
-            const localJWK = await getGroupKeyLocal(groupId);
             const socket = useAuthStore.getState().socket;
 
-            if (socket && targetMember && targetMember.publicKeyJWK && localJWK) {
-                const myKeypair = await getLocalKeypair(myId);
-                const remotePub = await importPublicKey(targetMember.publicKeyJWK);
-                const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
-                const payload = await encryptPayload({ groupKeyJWK: localJWK, groupId }, sharedKey);
-
+            if (socket && encryptedKeys[requesterId]) {
                 socket.emit("group-key-exchange", {
                     toUserId: requesterId,
-                    payload
+                    payload: encryptedKeys[requesterId]
                 });
             }
             get().getGroups();
