@@ -28,7 +28,7 @@ const GroupChatView = () => {
     };
 
     return (
-        <div className="flex-1 flex flex-col h-full overflow-hidden bg-base-100">
+        <div className="flex-1 flex flex-col h-full overflow-hidden bg-base-100 relative min-h-0">
             {/* Header */}
             <div className="shrink-0 border-b border-base-300 p-3 sm:p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -72,7 +72,7 @@ const GroupChatView = () => {
             )}
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
                 {messages.map((message) => {
                     const isMe = message.senderId === authUser?._id;
                     const sender = selectedGroup.members.find(m => m._id === message.senderId);

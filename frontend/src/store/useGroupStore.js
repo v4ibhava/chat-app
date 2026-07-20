@@ -108,6 +108,11 @@ export const useGroupStore = create((set, get) => ({
                     } else {
                         // Key not received or missing locally yet
                         decryptedGroups.push({ ...group, name: "Encrypted Group", desc: "Access pending key exchange" });
+                        // Request the group key from online admins
+                        const socket = useAuthStore.getState().socket;
+                        if (socket) {
+                            socket.emit("group-key-request", { groupId: group._id });
+                        }
                     }
                 } catch (err) {
                     console.error("Error decrypting group metadata:", err);
@@ -281,6 +286,37 @@ export const useGroupStore = create((set, get) => ({
                 }
             } catch (err) {
                 console.error("Failed to decrypt received group key:", err);
+            }
+        });
+
+        socket.on("group-key-request", async ({ groupId, requesterId }) => {
+            const myId = useAuthStore.getState().authUser?._id;
+            if (!myId) return;
+
+            const group = get().groups.find(g => g._id === groupId);
+            if (!group || !group.admins.includes(myId)) return;
+
+            const localJWK = await getGroupKeyLocal(groupId);
+            if (!localJWK) return;
+
+            try {
+                const usersRes = await axiosInstance.get("/messages/users");
+                const requester = usersRes.data.find(u => u._id === requesterId);
+                if (!requester?.publicKeyJWK) return;
+
+                const myKeypair = await getLocalKeypair(myId);
+                if (!myKeypair) return;
+
+                const remotePub = await importPublicKey(requester.publicKeyJWK);
+                const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
+                const payload = await encryptPayload({ groupKeyJWK: localJWK, groupId }, sharedKey);
+
+                socket.emit("group-key-exchange", {
+                    toUserId: requesterId,
+                    payload
+                });
+            } catch (err) {
+                console.error("Failed to respond to group key request:", err);
             }
         });
 

@@ -248,6 +248,29 @@ io.on("connection", (socket) => {
         }
     });
 
+    socket.on("group-key-request", async ({ groupId }) => {
+        if (!userId) return;
+        try {
+            const group = await Group.findById(groupId);
+            if (!group || !group.members.includes(userId)) return;
+
+            // Forward request to all online admins
+            for (const adminId of group.admins) {
+                const adminIdStr = adminId.toString();
+                if (adminIdStr === userId.toString()) continue;
+                const adminSocketId = getReceiverSocketId(adminIdStr);
+                if (adminSocketId) {
+                    io.to(adminSocketId).emit("group-key-request", {
+                        groupId,
+                        requesterId: userId
+                    });
+                }
+            }
+        } catch (err) {
+            console.error("Error routing group key request:", err);
+        }
+    });
+
     socket.on("disconnect", () => {
         console.log(`socket ${socket.id} disconnected`);
         // Find and remove the disconnected user

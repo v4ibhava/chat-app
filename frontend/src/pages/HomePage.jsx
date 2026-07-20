@@ -35,9 +35,9 @@ const HomePage = () => {
   }, [userIdFromUrl, users, setSelectedUser, setSelectedGroup]);
 
   return (
-    <div className="h-screen bg-base-200 pt-14">
-      <div className="flex items-center justify-center h-full px-0 sm:px-4 py-2 sm:py-4">
-        <div className="bg-base-100 rounded-lg sm:rounded-xl w-full h-full sm:h-[calc(100vh-8rem)] max-w-7xl overflow-hidden">
+    <div className="h-[calc(100dvh-3.5rem)] bg-base-200 mt-14">
+      <div className="flex flex-col h-full px-0 sm:px-4 py-2 sm:py-4">
+        <div className="bg-base-100 rounded-lg sm:rounded-xl w-full max-w-7xl overflow-hidden flex-1">
           <div className="flex h-full w-full">
             {/* Split Sidebar for Friends / Groups */}
             <aside className={`h-full border-r border-base-300 flex flex-col bg-base-100 transition-all duration-200
@@ -99,7 +99,7 @@ const HomePage = () => {
             </aside>
 
             {/* Message Chat Swapper */}
-            <div className={`flex-1 h-full ${!selectedUser && !selectedGroup ? "hidden md:flex" : "flex"}`}>
+            <div className={`flex-1 ${!selectedUser && !selectedGroup ? "hidden md:flex" : "flex"}`}>
               {!selectedUser && !selectedGroup ? (
                 <NoChatSelected />
               ) : selectedGroup ? (
