@@ -136,8 +136,9 @@ export const useAuthStore = create((set, get) => ({
         socket.on("getOnlineUsers", (userIds) => {
             console.log("Received online users:", userIds);
             
-            // Check if any user went offline to update their lastSeen time locally
             const prevOnlineUsers = get().onlineUsers;
+            
+            // Check if any user went offline to update their lastSeen time locally
             const offlineUsers = prevOnlineUsers.filter(id => !userIds.includes(id));
             if (offlineUsers.length > 0) {
                 const chatStore = useChatStore.getState();
@@ -162,6 +163,14 @@ export const useAuthStore = create((set, get) => ({
                         });
                     }
                 }
+            }
+
+            // Check if the selected user has just come online to auto-connect WebRTC
+            const chatStore = useChatStore.getState();
+            const { selectedUser } = chatStore;
+            if (selectedUser && userIds.includes(selectedUser._id) && !prevOnlineUsers.includes(selectedUser._id)) {
+                console.log(`Selected user ${selectedUser.fullName} came online! Auto-initiating WebRTC handshake.`);
+                chatStore.connectToPeer(selectedUser._id);
             }
 
             set({ onlineUsers: userIds });
