@@ -229,17 +229,24 @@ const ChatContainer = () => {
           <div className="relative w-full max-w-xs bg-base-200 border border-base-300 rounded-2xl p-5 shadow-2xl animate-fade-in text-center">
             <h4 className="font-bold text-sm mb-4">Delete Message</h4>
             <div className="space-y-2">
-              {messages.find(m => m._id === activeMessageOptions)?.senderId === authUser._id && (
-                <button 
-                  onClick={() => {
-                    deleteMessage(activeMessageOptions, true);
-                    setActiveMessageOptions(null);
-                  }}
-                  className="w-full btn btn-sm btn-error"
-                >
-                  Delete for Everyone
-                </button>
-              )}
+              {(() => {
+                const targetMsg = messages.find(m => m._id === activeMessageOptions);
+                const isMe = targetMsg?.senderId === authUser._id;
+                const hoursOld = targetMsg?.createdAt ? (new Date() - new Date(targetMsg.createdAt)) / 3600000 : 0;
+                const isWithinSixHours = hoursOld < 6;
+
+                return isMe && isWithinSixHours && (
+                  <button 
+                    onClick={() => {
+                      deleteMessage(activeMessageOptions, true);
+                      setActiveMessageOptions(null);
+                    }}
+                    className="w-full btn btn-sm btn-error"
+                  >
+                    Delete for Everyone
+                  </button>
+                );
+              })()}
               <button 
                 onClick={() => {
                   deleteMessage(activeMessageOptions, false);
