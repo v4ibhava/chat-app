@@ -55,6 +55,10 @@ const userSchema = new mongoose.Schema(
             type: Date,
             default: Date.now,
         },
+        publicKeyJWK: {
+            type: String,
+            default: "",
+        },
     },
     { timestamps: true }
 );

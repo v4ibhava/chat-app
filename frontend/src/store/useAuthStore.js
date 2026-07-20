@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import io from "socket.io-client";
 import { useChatStore } from "./useChatStore.js";
 import { playMessageSound } from "../lib/sounds.js";
+import { getLocalKeypair, saveLocalKeypair, generateE2EEKeypair } from "../lib/crypto.js";
 
 
 const rawBaseUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.MODE === "development" ? "http://localhost:5000" : "/");
@@ -22,6 +23,7 @@ export const useAuthStore = create((set, get) => ({
         try {
             const res = await axiosInstance.get("/auth/check");
             set({ authUser: res.data })
+            await get().checkAndPublishE2EEKeys();
             get().connectSocket();
         } catch (error) {
             console.log("error in checkAuth: ", error);
@@ -31,17 +33,43 @@ export const useAuthStore = create((set, get) => ({
         }
     },
 
+    checkAndPublishE2EEKeys: async () => {
+        const { authUser } = get();
+        if (!authUser) return;
+        try {
+            let keypair = await getLocalKeypair(authUser._id);
+            if (!keypair) {
+                console.log("Generating new E2EE Keypair...");
+                const generated = await generateE2EEKeypair();
+                await saveLocalKeypair(authUser._id, generated.privateKey, generated.publicKeyJWK);
+                keypair = { publicKeyJWK: generated.publicKeyJWK };
+            }
+
+            // Upload if not set on the database model
+            if (authUser.publicKeyJWK !== keypair.publicKeyJWK) {
+                const res = await axiosInstance.put("/auth/update-public-key", {
+                    publicKeyJWK: keypair.publicKeyJWK
+                });
+                set({ authUser: res.data });
+            }
+        } catch (err) {
+            console.error("E2EE Key Generation/Publish Error:", err);
+        }
+    },
+
     signup: async (data) => {
         set({ isSignUp: true });
         try {
             const res = await axiosInstance.post("/auth/signup", data);
             set({ authUser: res.data });
+            await get().checkAndPublishE2EEKeys();
             get().connectSocket();
             return { success: true };
         } catch (error) {
             const message = error.response?.data?.message || "Signup failed";
             return { success: false, message };
         } finally {
+            set({ isSignUp: true ? false : false }); // Keep standard logic
             set({ isSignUp: false });
         }
     },
@@ -50,7 +78,7 @@ export const useAuthStore = create((set, get) => ({
         try {
             const res = await axiosInstance.post("/auth/login", data);
             set({ authUser: res.data });
-
+            await get().checkAndPublishE2EEKeys();
             get().connectSocket();
             return { success: true };
         } catch (error) {

@@ -5,6 +5,7 @@ import { useAuthStore } from "./useAuthStore.js";
 import { playMessageSound } from "../lib/sounds.js";
 import { getLocalMessages, saveLocalMessage, deleteLocalMessage } from "../lib/db.js";
 import { startDialTone, startRingTone, stopTone } from "../lib/ringtone.js";
+import { getLocalKeypair, importPublicKey, deriveSharedKey, encryptPayload, decryptPayload } from "../lib/crypto.js";
 
 
 const peerConnections = {}; // { friendId: RTCPeerConnection }
@@ -705,10 +706,41 @@ export const useChatStore = create((set, get) => ({
         } else {
             const socket = useAuthStore.getState().socket;
             if (socket && socket.connected) {
-                socket.emit("chat-fallback-message", {
-                    to: friendId,
-                    message: localMsg
-                });
+                // E2EE fallback message encryption
+                (async () => {
+                    try {
+                        if (!selectedUser.publicKeyJWK) {
+                            console.warn("Recipient has no E2EE public key. Sending plaintext fallback.");
+                            socket.emit("chat-fallback-message", {
+                                to: friendId,
+                                message: localMsg
+                            });
+                            return;
+                        }
+                        
+                        const myKeypair = await getLocalKeypair(myId);
+                        if (!myKeypair) {
+                            console.error("Local private key missing. Cannot encrypt.");
+                            return;
+                        }
+
+                        const remotePub = await importPublicKey(selectedUser.publicKeyJWK);
+                        const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
+                        const encrypted = await encryptPayload(localMsg, sharedKey);
+
+                        socket.emit("chat-fallback-message", {
+                            to: friendId,
+                            message: {
+                                isEncrypted: true,
+                                iv: encrypted.iv,
+                                ciphertext: encrypted.ciphertext,
+                                senderId: myId
+                            }
+                        });
+                    } catch (e) {
+                        console.error("Failed to encrypt fallback message:", e);
+                    }
+                })();
             }
         }
     },
@@ -767,6 +799,56 @@ export const useChatStore = create((set, get) => ({
                 set({ isTyping: false });
             }
         });
+
+        socket.on("offline-messages-deliver", async (offlineMsgs) => {
+            if (!Array.isArray(offlineMsgs) || offlineMsgs.length === 0) return;
+
+            const acknowledgedIds = [];
+            const { selectedUser } = get();
+            const myId = useAuthStore.getState().authUser?._id;
+
+            for (const item of offlineMsgs) {
+                let msg = item.messageData;
+                acknowledgedIds.push(item._id);
+
+                // Decrypt if it is an E2EE package
+                if (msg && msg.isEncrypted) {
+                    try {
+                        const myKeypair = await getLocalKeypair(myId);
+                        const senderUser = get().users.find(u => u._id === item.senderId);
+                        if (myKeypair && senderUser && senderUser.publicKeyJWK) {
+                            const senderPub = await importPublicKey(senderUser.publicKeyJWK);
+                            const sharedKey = await deriveSharedKey(myKeypair.privateKey, senderPub);
+                            msg = await decryptPayload(msg.iv, msg.ciphertext, sharedKey);
+                        } else {
+                            console.error("Missing keys to decrypt offline message");
+                            continue;
+                        }
+                    } catch (decErr) {
+                        console.error("Failed to decrypt offline message:", decErr);
+                        continue;
+                    }
+                }
+
+                await saveLocalMessage(msg);
+
+                if (selectedUser && selectedUser._id === item.senderId) {
+                    const currentMsgs = get().messages;
+                    if (!currentMsgs.some(m => m._id === msg._id)) {
+                        const processedMsg = (msg.fileBlob && msg.fileType && msg.fileType.startsWith("image/"))
+                            ? { ...msg, image: URL.createObjectURL(msg.fileBlob) }
+                            : msg;
+                        set({ messages: [...currentMsgs, processedMsg] });
+                    }
+                } else {
+                    playMessageSound();
+                }
+            }
+
+            if (acknowledgedIds.length > 0) {
+                socket.emit("acknowledge-offline-messages", acknowledgedIds);
+            }
+        });
     },
 
     unSubscribeToMessages: () => {
@@ -774,6 +856,7 @@ export const useChatStore = create((set, get) => ({
         if (socket) {
             socket.off("typing");
             socket.off("stop typing");
+            socket.off("offline-messages-deliver");
         }
     },
 

@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import http from "http";
 import express from "express";
 import User from "../models/user.model.js";
+import OfflineMessage from "../models/offlineMessage.model.js";
 
 
 const app = express();
@@ -47,6 +48,22 @@ const updateLastSeen = async (userId) => {
     }
 };
 
+const deliverOfflineMessages = async (userId, socket) => {
+    try {
+        const offlineMsgs = await OfflineMessage.find({ receiverId: userId }).sort({ createdAt: 1 });
+        if (offlineMsgs.length > 0) {
+            socket.emit("offline-messages-deliver", offlineMsgs.map(m => ({
+                _id: m._id,
+                senderId: m.senderId,
+                receiverId: m.receiverId,
+                messageData: m.messageData
+            })));
+        }
+    } catch (err) {
+        console.error("Error delivering offline messages:", err);
+    }
+};
+
 io.on("connection", (socket) => {
     console.log(`socket ${socket.id} connected`);
 
@@ -55,6 +72,7 @@ io.on("connection", (socket) => {
         userSocketMap[userId] = socket.id;
         io.emit("getOnlineUsers", Object.keys(userSocketMap));
         updateLastSeen(userId);
+        deliverOfflineMessages(userId, socket);
     }
 
     socket.on("userReconnected", (userId) => {
@@ -62,6 +80,16 @@ io.on("connection", (socket) => {
             userSocketMap[userId] = socket.id;
             io.emit("getOnlineUsers", Object.keys(userSocketMap));
             updateLastSeen(userId);
+            deliverOfflineMessages(userId, socket);
+        }
+    });
+
+    socket.on("acknowledge-offline-messages", async (messageDbIds) => {
+        if (!Array.isArray(messageDbIds)) return;
+        try {
+            await OfflineMessage.deleteMany({ _id: { $in: messageDbIds } });
+        } catch (err) {
+            console.error("Error deleting acknowledged offline messages:", err);
         }
     });
 
@@ -126,6 +154,13 @@ io.on("connection", (socket) => {
                         from: userId,
                         message
                     });
+                } else {
+                    // Recipient is offline, store temporarily on server
+                    await OfflineMessage.create({
+                        senderId: userId,
+                        receiverId: to,
+                        messageData: message
+                    });
                 }
             } else {
                 console.log(`Security Block: User ${userId} tried to send fallback message to non-friend ${to}`);
@@ -171,3 +206,4 @@ io.on("connection", (socket) => {
 });
 
 export { io, app, server };
+
