@@ -34,7 +34,7 @@ const ChatHeader = () => {
     const [showProfileModal, setShowProfileModal] = useState(false)
     
     return (
-        <div className='border-b border-base-300 p-3 sm:p-4'>
+        <div className='shrink-0 border-b border-base-300 p-3 sm:p-4'>
             <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2 sm:gap-3'>
                     <button 

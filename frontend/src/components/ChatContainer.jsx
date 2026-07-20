@@ -61,7 +61,7 @@ const ChatContainer = () => {
         <div className="flex-1 overflow-y-auto">
           <MessageSkeleton />
         </div>
-        {!selectedUser?.isDeletedAccount && <MessageInput />}
+        {!selectedUser?.isDeletedAccount && <div className="shrink-0"><MessageInput /></div>}
       </div>
     );
   }

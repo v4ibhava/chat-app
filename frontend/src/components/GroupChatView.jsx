@@ -30,7 +30,7 @@ const GroupChatView = () => {
     return (
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-base-100">
             {/* Header */}
-            <div className="border-b border-base-300 p-3 sm:p-4 flex items-center justify-between">
+            <div className="shrink-0 border-b border-base-300 p-3 sm:p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <button onClick={() => setSelectedGroup(null)} className="md:hidden btn btn-sm btn-ghost btn-circle">
                         <ArrowLeft className="w-5 h-5" />
@@ -50,7 +50,7 @@ const GroupChatView = () => {
 
             {/* Admin Approvals Banner */}
             {isAdmin && selectedGroup.pendingRequests?.length > 0 && (
-                <div className="bg-amber-500/10 border-b border-amber-500/20 p-3 space-y-2">
+                <div className="shrink-0 bg-amber-500/10 border-b border-amber-500/20 p-3 space-y-2">
                     <div className="flex items-center gap-2 text-xs font-semibold text-amber-500">
                         <ShieldAlert className="w-4 h-4" />
                         <span>Pending Join Requests:</span>
@@ -98,7 +98,7 @@ const GroupChatView = () => {
             </div>
 
             {/* Input Form */}
-            <form onSubmit={handleSend} className="p-3 sm:p-4 border-t border-base-300 flex gap-2">
+            <form onSubmit={handleSend} className="shrink-0 p-3 sm:p-4 border-t border-base-300 flex gap-2">
                 <input
                     type="text"
                     value={text}
