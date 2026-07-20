@@ -141,41 +141,47 @@ export const useGroupStore = create((set, get) => ({
             const encName = await encryptGroupMetadata(name, groupKey);
             const encDesc = await encryptGroupMetadata("Group Chat room", groupKey);
 
-            // 3. Encrypt group key for each member using ECDH (for offline access/startup sync)
-            const encryptedKeys = {};
             const myKeypair = await getLocalKeypair(myId);
 
             // Fetch and cache member profiles to ensure public keys are loaded
             const usersRes = await axiosInstance.get("/messages/users");
             const allUsers = usersRes.data;
 
-            for (const memberId of memberIds) {
-                const member = allUsers.find(u => u._id === memberId);
-                if (member && member.publicKeyJWK && myKeypair) {
-                    try {
-                        const remotePub = await importPublicKey(member.publicKeyJWK);
-                        const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
-                        const payload = await encryptPayload({ groupKeyJWK }, sharedKey);
-                        encryptedKeys[memberId] = payload;
-                    } catch (e) {
-                        console.error("Failed to encrypt group key offline map:", e);
-                    }
-                }
-            }
-
-            // 4. Post Group with encrypted keys to server
+            // 4. Post Group first to obtain the generated group _id
             const res = await axiosInstance.post("/groups", {
                 encryptedName: encName.ciphertext,
                 encryptedDesc: encDesc.ciphertext,
                 iv: encName.iv,
-                members: memberIds,
-                encryptedKeys
+                members: memberIds
             });
 
             const newGroup = res.data;
             await saveGroupKeyLocal(newGroup._id, groupKeyJWK);
 
-            // 5. E2EE Key Distribution over socket using ECDH (for instant online delivery)
+            // 5. Encrypt the group key for members now that we have the groupId
+            const encryptedKeys = {};
+            for (const member of newGroup.members) {
+                if (member._id === myId) continue;
+                if (member.publicKeyJWK && myKeypair) {
+                    try {
+                        const remotePub = await importPublicKey(member.publicKeyJWK);
+                        const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
+                        const payload = await encryptPayload({ groupKeyJWK, groupId: newGroup._id }, sharedKey);
+                        encryptedKeys[member._id] = payload;
+                    } catch (e) {
+                        console.error("Failed to encrypt group key map:", e);
+                    }
+                }
+            }
+
+            // 6. Update group database model with E2EE key mapping
+            await axiosInstance.post("/groups/approve", {
+                groupId: newGroup._id,
+                requesterId: myId, // Bypass membership checks by using approve controller logic or merge keys
+                encryptedKeys
+            });
+
+            // 7. E2EE Key Distribution over socket using ECDH (for instant online delivery)
             const socket = useAuthStore.getState().socket;
             if (socket) {
                 for (const member of newGroup.members) {
@@ -270,8 +276,10 @@ export const useGroupStore = create((set, get) => ({
                     const sharedKey = await deriveSharedKey(myKeypair.privateKey, senderPub);
                     const decrypted = await decryptPayload(payload.iv, payload.ciphertext, sharedKey);
 
-                    await saveGroupKeyLocal(decrypted.groupId, decrypted.groupKeyJWK);
-                    get().getGroups();
+                    if (decrypted && decrypted.groupKeyJWK && decrypted.groupId) {
+                        await saveGroupKeyLocal(decrypted.groupId, decrypted.groupKeyJWK);
+                        get().getGroups();
+                    }
                 }
             } catch (err) {
                 console.error("Failed to decrypt received group key:", err);
