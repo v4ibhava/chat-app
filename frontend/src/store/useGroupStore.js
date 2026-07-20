@@ -133,64 +133,62 @@ export const useGroupStore = create((set, get) => ({
         if (!myId) return;
 
         try {
-            // 1. Generate Group Key
             const groupKey = await generateGroupKey();
             const groupKeyJWK = await exportGroupKey(groupKey);
 
-            // 2. Encrypt Metadata
             const encName = await encryptGroupMetadata(name, groupKey);
             const encDesc = await encryptGroupMetadata("Group Chat room", groupKey);
 
             const myKeypair = await getLocalKeypair(myId);
 
-            // Fetch and cache member profiles to ensure public keys are loaded
             const usersRes = await axiosInstance.get("/messages/users");
             const allUsers = usersRes.data;
 
-            // 4. Post Group first to obtain the generated group _id
+            // Encrypt group key for each member BEFORE creating the group
+            // so encryptedKeys can be stored on the server in the initial creation.
+            const encryptedKeys = {};
+            for (const memberId of memberIds) {
+                const member = allUsers.find(u => u._id === memberId);
+                if (member && member.publicKeyJWK && myKeypair) {
+                    try {
+                        const remotePub = await importPublicKey(member.publicKeyJWK);
+                        const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
+                        const payload = await encryptPayload({ groupKeyJWK }, sharedKey);
+                        encryptedKeys[memberId] = payload;
+                    } catch (e) {
+                        console.error("Failed to encrypt group key for member:", e);
+                    }
+                }
+            }
+
             const res = await axiosInstance.post("/groups", {
                 encryptedName: encName.ciphertext,
                 encryptedDesc: encDesc.ciphertext,
                 iv: encName.iv,
-                members: memberIds
+                members: memberIds,
+                encryptedKeys
             });
 
             const newGroup = res.data;
             await saveGroupKeyLocal(newGroup._id, groupKeyJWK);
 
-            // 5. Encrypt the group key for members now that we have the groupId
-            const encryptedKeys = {};
-            for (const member of newGroup.members) {
-                if (member._id === myId) continue;
-                if (member.publicKeyJWK && myKeypair) {
-                    try {
-                        const remotePub = await importPublicKey(member.publicKeyJWK);
-                        const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
-                        const payload = await encryptPayload({ groupKeyJWK, groupId: newGroup._id }, sharedKey);
-                        encryptedKeys[member._id] = payload;
-                    } catch (e) {
-                        console.error("Failed to encrypt group key map:", e);
-                    }
-                }
-            }
-
-            // 6. Update group database model with E2EE key mapping
-            await axiosInstance.post("/groups/approve", {
-                groupId: newGroup._id,
-                requesterId: myId, // Bypass membership checks by using approve controller logic or merge keys
-                encryptedKeys
-            });
-
-            // 7. E2EE Key Distribution over socket using ECDH (for instant online delivery)
+            // Distribute group key over socket (with groupId) for instant online delivery
             const socket = useAuthStore.getState().socket;
             if (socket) {
                 for (const member of newGroup.members) {
                     if (member._id === myId) continue;
-                    if (encryptedKeys[member._id]) {
-                        socket.emit("group-key-exchange", {
-                            toUserId: member._id,
-                            payload: encryptedKeys[member._id]
-                        });
+                    if (member.publicKeyJWK && myKeypair) {
+                        try {
+                            const remotePub = await importPublicKey(member.publicKeyJWK);
+                            const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
+                            const payload = await encryptPayload({ groupKeyJWK, groupId: newGroup._id }, sharedKey);
+                            socket.emit("group-key-exchange", {
+                                toUserId: member._id,
+                                payload
+                            });
+                        } catch (e) {
+                            console.error("Failed to send group key over socket:", e);
+                        }
                     }
                 }
             }
