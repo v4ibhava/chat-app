@@ -745,7 +745,7 @@ export const useChatStore = create((set, get) => ({
         }
     },
 
-    deleteMessage: async (messageId) => {
+    deleteMessage: async (messageId, deleteForAll = true) => {
         const { selectedUser, messages } = get();
         if (!selectedUser) return;
         const friendId = selectedUser._id;
@@ -753,6 +753,8 @@ export const useChatStore = create((set, get) => ({
         // Delete from local IndexedDB
         await deleteLocalMessage(messageId);
         set({ messages: messages.filter(m => m._id !== messageId) });
+
+        if (!deleteForAll) return;
 
         // Send P2P delete event, otherwise fallback to socket.io
         const dc = dataChannels[friendId];

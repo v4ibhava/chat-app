@@ -3,6 +3,7 @@ import http from "http";
 import express from "express";
 import User from "../models/user.model.js";
 import OfflineMessage from "../models/offlineMessage.model.js";
+import Group from "../models/group.model.js";
 
 
 const app = express();
@@ -203,6 +204,47 @@ io.on("connection", (socket) => {
             }
         } catch (err) {
             console.error("Error in chat-fallback-delete check:", err);
+        }
+    });
+
+    socket.on("join-group-rooms", async (groupIds) => {
+        if (!Array.isArray(groupIds)) return;
+        groupIds.forEach(id => {
+            socket.join(`group_${id}`);
+            console.log(`Socket ${socket.id} joined group room: group_${id}`);
+        });
+    });
+
+    socket.on("group-message", async ({ groupId, message }) => {
+        if (!userId) return;
+        try {
+            // Verify group membership
+            const group = await Group.findById(groupId);
+            if (group && group.members.includes(userId)) {
+                // Broadcast E2EE encrypted message to all online group members in the room
+                socket.to(`group_${groupId}`).emit("group-message", {
+                    groupId,
+                    message,
+                    senderId: userId
+                });
+            }
+        } catch (err) {
+            console.error("Error broadcasting group message:", err);
+        }
+    });
+
+    socket.on("group-key-exchange", async ({ toUserId, payload }) => {
+        if (!userId) return;
+        try {
+            const receiverSocketId = getReceiverSocketId(toUserId);
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("group-key-exchange", {
+                    fromUserId: userId,
+                    payload
+                });
+            }
+        } catch (err) {
+            console.error("Error in group key exchange routing:", err);
         }
     });
 

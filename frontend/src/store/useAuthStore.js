@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import io from "socket.io-client";
 import { useChatStore } from "./useChatStore.js";
 import { playMessageSound } from "../lib/sounds.js";
-import { getLocalKeypair, saveLocalKeypair, generateE2EEKeypair } from "../lib/crypto.js";
+import { getLocalKeypair, saveLocalKeypair, generateE2EEKeypair, decryptPayload, importPublicKey, deriveSharedKey } from "../lib/crypto.js";
 
 
 const rawBaseUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.MODE === "development" ? "http://localhost:5000" : "/");
@@ -238,15 +238,35 @@ export const useAuthStore = create((set, get) => ({
         socket.on("chat-fallback-message", async (payload) => {
             const { from, message } = payload;
             const chatStore = useChatStore.getState();
-            await chatStore.saveLocalMessage(message);
+            let msg = message;
+
+            if (message && message.isEncrypted) {
+                try {
+                    const myId = useAuthStore.getState().authUser?._id;
+                    const myKeypair = await getLocalKeypair(myId);
+                    
+                    // Retrieve sender's public key from friend list
+                    const senderUser = chatStore.users.find(u => u._id === from);
+                    if (myKeypair && senderUser && senderUser.publicKeyJWK) {
+                        const senderPub = await importPublicKey(senderUser.publicKeyJWK);
+                        const sharedKey = await deriveSharedKey(myKeypair.privateKey, senderPub);
+                        msg = await decryptPayload(message.iv, message.ciphertext, sharedKey);
+                    }
+                } catch (decErr) {
+                    console.error("Failed to decrypt live fallback message:", decErr);
+                    return;
+                }
+            }
+
+            await chatStore.saveLocalMessage(msg);
             playMessageSound();
             
             if (chatStore.selectedUser && chatStore.selectedUser._id === from) {
                 const currentMsgs = chatStore.messages;
-                if (!currentMsgs.some(m => m._id === message._id)) {
-                    const processedMsg = (message.fileBlob && message.fileType && message.fileType.startsWith("image/"))
-                        ? { ...message, image: URL.createObjectURL(message.fileBlob) }
-                        : message;
+                if (!currentMsgs.some(m => m._id === msg._id)) {
+                    const processedMsg = (msg.fileBlob && msg.fileType && msg.fileType.startsWith("image/"))
+                        ? { ...msg, image: URL.createObjectURL(msg.fileBlob) }
+                        : msg;
                     useChatStore.setState({ messages: [...currentMsgs, processedMsg] });
                 }
             }

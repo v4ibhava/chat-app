@@ -136,3 +136,73 @@ export const decryptPayload = async (ivBase64, ciphertextBase64, sharedKey) => {
     const textDecoder = new TextDecoder();
     return JSON.parse(textDecoder.decode(decryptedBuffer));
 };
+
+// Generates a random raw 256-bit symmetric key for a group
+export const generateGroupKey = async () => {
+    return await window.crypto.subtle.generateKey(
+        {
+            name: "AES-GCM",
+            length: 256
+        },
+        true, // exportable so we can share it via ECDH
+        ["encrypt", "decrypt"]
+    );
+};
+
+// Exports a symmetric CryptoKey to JWK
+export const exportGroupKey = async (cryptoKey) => {
+    return await window.crypto.subtle.exportKey("jwk", cryptoKey);
+};
+
+// Imports a symmetric JWK back into a CryptoKey
+export const importGroupKey = async (jwk) => {
+    return await window.crypto.subtle.importKey(
+        "jwk",
+        jwk,
+        {
+            name: "AES-GCM",
+            length: 256
+        },
+        true,
+        ["encrypt", "decrypt"]
+    );
+};
+
+// Encrypts plaintext string using AES-GCM and a group key, returning { ciphertext, iv } in base64
+export const encryptGroupMetadata = async (plaintext, groupKey) => {
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(plaintext);
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+
+    const ciphertextBuffer = await window.crypto.subtle.encrypt(
+        {
+            name: "AES-GCM",
+            iv
+        },
+        groupKey,
+        encoded
+    );
+
+    return {
+        ciphertext: btoa(String.fromCharCode(...new Uint8Array(ciphertextBuffer))),
+        iv: btoa(String.fromCharCode(...iv))
+    };
+};
+
+// Decrypts group metadata
+export const decryptGroupMetadata = async (ciphertextBase64, ivBase64, groupKey) => {
+    const iv = new Uint8Array(atob(ivBase64).split("").map(c => c.charCodeAt(0)));
+    const ciphertext = new Uint8Array(atob(ciphertextBase64).split("").map(c => c.charCodeAt(0)));
+
+    const decryptedBuffer = await window.crypto.subtle.decrypt(
+        {
+            name: "AES-GCM",
+            iv
+        },
+        groupKey,
+        ciphertext
+    );
+
+    const decoder = new TextDecoder();
+    return decoder.decode(decryptedBuffer);
+};
