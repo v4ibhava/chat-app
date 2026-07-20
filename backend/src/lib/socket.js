@@ -134,6 +134,22 @@ io.on("connection", (socket) => {
                         from: userId,
                         signal
                     });
+                } else if (signal.type === "call-offer") {
+                    // Recipient is offline, create a missed call system message
+                    const systemMessage = {
+                        _id: "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9),
+                        chatKey: `${to}_${userId}`,
+                        senderId: userId,
+                        receiverId: to,
+                        text: `Missed ${signal.callType || "audio"} call`,
+                        isSystem: true,
+                        createdAt: new Date().toISOString()
+                    };
+                    await OfflineMessage.create({
+                        senderId: userId,
+                        receiverId: to,
+                        messageData: systemMessage
+                    });
                 }
             } else {
                 console.log(`Security Block: User ${userId} tried to signal non-friend ${to}`);

@@ -56,22 +56,30 @@ const ChatContainer = () => {
         className="flex-1 overflow-y-auto p-4 space-y-4"
       >
         {messages.map((message) => (
-          <div key={message._id} className={`chat ${message.senderId === authUser._id ? "chat-end" : "chat-start"} group/msg relative`}>
-            <div className="chat-image avatar">
-              <div className="size-10 rounded-full">
-                <img
-                  src={message.senderId === authUser._id
-                    ? authUser.profilePic || DEFAULT_AVATAR
-                    : selectedUser.profilePic || DEFAULT_AVATAR}
-                  alt="Users Profile" />
+          <div key={message._id} className={message.isSystem ? "flex justify-center my-2 w-full" : `chat ${message.senderId === authUser._id ? "chat-end" : "chat-start"} group/msg relative`}>
+            {!message.isSystem && (
+              <div className="chat-image avatar">
+                <div className="size-10 rounded-full">
+                  <img
+                    src={message.senderId === authUser._id
+                      ? authUser.profilePic || DEFAULT_AVATAR
+                      : selectedUser.profilePic || DEFAULT_AVATAR}
+                    alt="Users Profile" />
+                </div>
               </div>
-            </div>
-            <div className='chat-header mb-1'>
-              <time className='text-xs opacity-50 ml-1'>
-                {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
-              </time>
-            </div>
-            {message.image ? (
+            )}
+            {!message.isSystem && (
+              <div className='chat-header mb-1'>
+                <time className='text-xs opacity-50 ml-1'>
+                  {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
+                </time>
+              </div>
+            )}
+            {message.isSystem ? (
+              <div className="px-4 py-1.5 rounded-full bg-red-500/10 text-red-500 text-xs font-medium border border-red-500/20">
+                ⚠️ {message.text}
+              </div>
+            ) : message.image ? (
               /* Premium image message layout (no blocky solid bubble) */
               <div className="flex flex-col items-start gap-1">
                 <div className="relative rounded-2xl overflow-hidden shadow-md border border-base-300/50 hover:shadow-lg transition-shadow group/img-container max-w-[280px] sm:max-w-[360px]">

@@ -980,6 +980,37 @@ export const useChatStore = create((set, get) => ({
         const socket = useAuthStore.getState().socket;
         if (!socket) return;
 
+        const onlineUsers = useAuthStore.getState().onlineUsers;
+        const isOnline = onlineUsers.includes(user._id);
+
+        if (!isOnline) {
+            toast.error(`${user.fullName} is offline. Missed call logged.`);
+            
+            // Add local missed call message
+            const myId = useAuthStore.getState().authUser?._id;
+            const messageId = "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
+            const localMsg = {
+                _id: messageId,
+                chatKey: `${myId}_${user._id}`,
+                senderId: myId,
+                receiverId: user._id,
+                text: `Missed ${type} call`,
+                isSystem: true,
+                createdAt: new Date().toISOString()
+            };
+            await saveLocalMessage(localMsg);
+            if (get().selectedUser?._id === user._id) {
+                set({ messages: [...get().messages, localMsg] });
+            }
+
+            // Signal offline server queue
+            socket.emit("webrtc-signal", {
+                to: user._id,
+                signal: { type: "call-offer", callType: type }
+            });
+            return;
+        }
+
         set({
             callState: "ringing",
             callType: type,
@@ -1513,6 +1544,26 @@ export const useChatStore = create((set, get) => ({
 
         else if (signal.type === "call-rejected") {
             stopTone();
+            const caller = get().activeCallUser;
+            if (caller) {
+                // Add local missed call message
+                const myId = useAuthStore.getState().authUser?._id;
+                const messageId = "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
+                const localMsg = {
+                    _id: messageId,
+                    chatKey: `${myId}_${caller._id}`,
+                    senderId: myId,
+                    receiverId: caller._id,
+                    text: `Missed ${get().callType || "audio"} call`,
+                    isSystem: true,
+                    createdAt: new Date().toISOString()
+                };
+                await saveLocalMessage(localMsg);
+                if (get().selectedUser?._id === caller._id) {
+                    set({ messages: [...get().messages, localMsg] });
+                }
+            }
+
             if (signal.reason === "busy") {
                 toast.error(`${get().activeCallUser?.fullName || "User"} is busy on another call.`);
             } else {
