@@ -89,9 +89,11 @@ export const useGroupStore = create((set, get) => ({
                                 const sharedKey = await deriveSharedKey(myKeypair.privateKey, creatorPub);
                                 const decrypted = await decryptPayload(encryptedKeyObj.iv, encryptedKeyObj.ciphertext, sharedKey);
                                 
-                                if (decrypted && decrypted.groupKeyJWK) {
-                                    await saveGroupKeyLocal(group._id, decrypted.groupKeyJWK);
-                                    localJWK = decrypted.groupKeyJWK;
+                                // Accept payload with either groupKeyJWK directly or nested properties
+                                const groupKeyJWK = decrypted.groupKeyJWK || decrypted;
+                                if (groupKeyJWK) {
+                                    await saveGroupKeyLocal(group._id, groupKeyJWK);
+                                    localJWK = groupKeyJWK;
                                     console.log(`Successfully synced and decrypted offline key for group ${group._id}`);
                                 }
                             }
