@@ -88,7 +88,7 @@ const SearchBar = () => {
       <div className="relative">
         <input
           type="text"
-          placeholder="Search friends..."
+          placeholder="Search users..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query.length >= 2 && setShowResults(true)}

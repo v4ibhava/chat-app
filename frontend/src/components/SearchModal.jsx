@@ -106,7 +106,7 @@ const SearchModal = ({ isOpen, onClose }) => {
           <input
             ref={inputRef}
             type="text"
-            placeholder="Search friends..."
+            placeholder="Search users..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="input input-lg w-full pl-12 bg-base-100 border-base-300 shadow-xl text-lg"

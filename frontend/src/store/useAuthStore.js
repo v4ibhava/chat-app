@@ -180,7 +180,7 @@ export const useAuthStore = create((set, get) => ({
         });
 
         // Listen for WebRTC signals globally (calls and chat)
-        socket.on("webrtc-signal", (payload) => {
+        socket.off("webrtc-signal").on("webrtc-signal", (payload) => {
             const { signal } = payload;
             if (signal && signal.type && signal.type.startsWith("call-")) {
                 useChatStore.getState().handleCallSignal(payload);

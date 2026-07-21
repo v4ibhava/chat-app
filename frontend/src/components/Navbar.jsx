@@ -13,9 +13,6 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // SearchBar only displays when user is on Profile or Settings page
-  const showSearchBarInHeader = ["/profile", "/settings"].includes(location.pathname);
-
   return (
     <>
       <header className='bg-[#121215] border-b border-[#1e1e24] fixed w-full top-0 z-40'>
@@ -30,8 +27,8 @@ const Navbar = () => {
               </Link>
             </div>
             
-            {/* SearchBar conditionally shown ONLY when on /profile or /settings page */}
-            {authUser && showSearchBarInHeader && (
+            {/* Global SearchBar */}
+            {authUser && (
               <div className="hidden md:flex items-center gap-3 flex-1 max-w-md mx-4">
                 <div className="w-full">
                   <SearchBar />
@@ -42,15 +39,13 @@ const Navbar = () => {
             <div className='flex items-center gap-1 sm:gap-2'>
               {authUser ? (
                 <>
-                  {showSearchBarInHeader && (
-                    <button 
-                      onClick={() => setShowSearch(true)}
-                      className="md:hidden w-10 h-10 rounded-full bg-[#1f1f26] hover:bg-[#2a2a34] flex items-center justify-center text-zinc-400 hover:text-white transition-all"
-                      title="Search Settings"
-                    >
-                      <Search className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button 
+                    onClick={() => setShowSearch(true)}
+                    className="md:hidden w-10 h-10 rounded-full bg-[#1f1f26] hover:bg-[#2a2a34] flex items-center justify-center text-zinc-400 hover:text-white transition-all"
+                    title="Search Users"
+                  >
+                    <Search className="w-4 h-4" />
+                  </button>
                   
                   <Notifications />
                   
