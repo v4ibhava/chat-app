@@ -171,41 +171,6 @@ const ChatContainer = () => {
                   )}
                 </div>
               )}
-                      className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 rounded-full hover:bg-base-300 shrink-0"
-                      title="Options"
-                    >
-                      <MoreVertical className="w-4 h-4 text-zinc-400" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* Standard chat bubble for text or files */
-                <div className="chat-bubble flex items-center gap-2.5 relative">
-                  <div className="flex-1 min-w-0">
-                    {message.text && <p className="whitespace-pre-wrap text-sm sm:text-base">{message.text}</p>}
-                    {message.fileName && (
-                      <div className="flex items-center gap-2.5 p-2 bg-base-300/40 rounded-xl text-xs mt-1.5 border border-base-300/30">
-                        <span className="font-semibold truncate max-w-[150px]">{message.fileName}</span>
-                        <span className="opacity-60">({Math.round(message.fileSize / 1024)} KB)</span>
-                        <a 
-                          href={message.fileBlob ? URL.createObjectURL(message.fileBlob) : "#"}
-                          download={message.fileName}
-                          className="text-primary hover:underline font-bold ml-auto shrink-0"
-                        >
-                          Download
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                  <button 
-                    onClick={() => setActiveMessageOptions(message._id)}
-                    className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 rounded-full hover:bg-base-300/30 shrink-0"
-                    title="Options"
-                  >
-                    <MoreVertical className="w-4 h-4 text-zinc-300" />
-                  </button>
-                </div>
-              )}
             </div>
           );
         })}
