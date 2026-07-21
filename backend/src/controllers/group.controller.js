@@ -106,13 +106,17 @@ export const updateGroup = async (req, res) => {
 export const deleteGroup = async (req, res) => {
     try {
         const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ message: "Group ID is required" });
+        }
         const group = await Group.findById(id);
         if (!group) {
             return res.status(404).json({ message: "Group not found" });
         }
 
         // Only the original creator (first admin) can delete
-        if (group.admins[0].toString() !== req.user._id.toString()) {
+        const creatorId = group.admins && group.admins.length > 0 ? group.admins[0].toString() : null;
+        if (!creatorId || creatorId !== req.user._id.toString()) {
             return res.status(403).json({ message: "Only the group creator can delete the group" });
         }
 

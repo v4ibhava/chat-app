@@ -287,6 +287,10 @@ export const useGroupStore = create((set, get) => ({
     },
 
     deleteGroup: async (groupId) => {
+        if (!groupId) {
+            toast.error("Invalid group ID");
+            return;
+        }
         try {
             await axiosInstance.delete(`/groups/${groupId}`);
             await deleteGroupKeyLocal(groupId);
@@ -302,6 +306,10 @@ export const useGroupStore = create((set, get) => ({
     },
 
     leaveGroup: async (groupId) => {
+        if (!groupId) {
+            toast.error("Invalid group ID");
+            return;
+        }
         try {
             await axiosInstance.post(`/groups/${groupId}/leave`);
             await deleteGroupKeyLocal(groupId);
