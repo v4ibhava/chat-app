@@ -207,6 +207,26 @@ io.on("connection", (socket) => {
         }
     });
 
+    socket.on("clear-chat-history", async ({ to }) => {
+        if (!userId || !to) return;
+        try {
+            // Delete pending offline messages between these two users
+            await OfflineMessage.deleteMany({
+                $or: [
+                    { senderId: userId, receiverId: to },
+                    { senderId: to, receiverId: userId }
+                ]
+            });
+            // Forward event to online friend if connected
+            const receiverSocketId = getReceiverSocketId(to);
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("chat-cleared", { fromUserId: userId });
+            }
+        } catch (err) {
+            console.error("Error clearing chat history offline messages:", err);
+        }
+    });
+
     socket.on("join-group-rooms", async (groupIds) => {
         if (!Array.isArray(groupIds)) return;
         groupIds.forEach(id => {

@@ -41,8 +41,8 @@ const HomePage = () => {
   );
 
   return (
-    <div className="h-[calc(100dvh-3.5rem)] bg-base-200 mt-14 overflow-hidden">
-      <div className="flex flex-col h-full max-w-[1600px] mx-auto p-0 sm:p-3 md:p-4">
+    <div className="fixed inset-x-0 top-14 bottom-0 bg-base-200 overflow-hidden">
+      <div className="flex flex-col h-full max-w-[1600px] mx-auto p-0 sm:p-2 md:p-3">
         <div className="bg-base-100 rounded-none sm:rounded-2xl border border-base-300 shadow-xl w-full h-full overflow-hidden flex flex-1">
           <div className="flex h-full w-full">
             {/* Unified Desktop Sidebar */}

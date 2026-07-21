@@ -3,7 +3,7 @@ import { useGroupStore } from "../store/useGroupStore";
 import { useAuthStore } from "../store/useAuthStore";
 import {
     X, Camera, Trash2, LogOut, UserMinus, Shield, Crown,
-    Copy, Check, Pencil, KeyRound, Users
+    Copy, Check, Pencil, Users
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import UserAvatar from "./UserAvatar";
@@ -12,7 +12,7 @@ const GroupInfoPanel = () => {
     const {
         selectedGroup, setSelectedGroup, isGroupInfoOpen, setGroupInfoOpen,
         updateGroupName, updateGroupAvatar, removeGroupAvatar,
-        deleteGroup, leaveGroup, removeMember, requestGroupKey
+        deleteGroup, leaveGroup, removeMember
     } = useGroupStore();
     const { authUser, onlineUsers } = useAuthStore();
 
@@ -29,7 +29,6 @@ const GroupInfoPanel = () => {
 
     const isAdmin = selectedGroup.admins?.includes(authUser?._id);
     const isCreator = selectedGroup.admins?.[0] === authUser?._id;
-    const isPendingKey = selectedGroup.name === "Encrypted Group";
 
     const handleEditName = () => {
         setEditName(selectedGroup.name);
@@ -133,7 +132,7 @@ const GroupInfoPanel = () => {
                                     {selectedGroup.name.substring(0, 2).toUpperCase()}
                                 </div>
                             )}
-                            {isAdmin && !isPendingKey && (
+                            {isAdmin && (
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
                                     className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
@@ -156,7 +155,7 @@ const GroupInfoPanel = () => {
                         </div>
 
                         {/* Remove avatar button */}
-                        {isAdmin && selectedGroup.groupPic && !isPendingKey && (
+                        {isAdmin && selectedGroup.groupPic && (
                             <button
                                 onClick={() => removeGroupAvatar(selectedGroup._id)}
                                 className="mt-2 text-xs text-error hover:underline"
@@ -188,7 +187,7 @@ const GroupInfoPanel = () => {
                             ) : (
                                 <div className="flex items-center gap-2">
                                     <h2 className="text-xl font-bold text-base-content">{selectedGroup.name}</h2>
-                                    {isAdmin && !isPendingKey && (
+                                    {isAdmin && (
                                         <button
                                             onClick={handleEditName}
                                             className="btn btn-xs btn-ghost btn-circle opacity-60 hover:opacity-100"
@@ -203,22 +202,6 @@ const GroupInfoPanel = () => {
                         <p className="text-xs text-zinc-500 mt-1">{selectedGroup.desc}</p>
                         <p className="text-xs text-zinc-400 mt-1">{selectedGroup.members?.length || 0} members</p>
                     </div>
-
-                    {/* Key Request Button (shown when pending) */}
-                    {isPendingKey && (
-                        <div className="px-6 pb-4">
-                            <button
-                                onClick={() => requestGroupKey(selectedGroup._id)}
-                                className="btn btn-sm btn-warning w-full gap-2"
-                            >
-                                <KeyRound className="w-4 h-4" />
-                                Request Encryption Key
-                            </button>
-                            <p className="text-xs text-zinc-500 text-center mt-2">
-                                An admin needs to be online to share the key
-                            </p>
-                        </div>
-                    )}
 
                     {/* Invite Link */}
                     {selectedGroup.inviteCode && (
@@ -285,7 +268,7 @@ const GroupInfoPanel = () => {
                                             </div>
                                         </div>
 
-                                        {/* Remove button (admin only, can't remove self or creator) */}
+                                        {/* Remove button (admin only) */}
                                         {isAdmin && !isMe && role !== "creator" && (
                                             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                                 {removingMemberId === member._id ? (

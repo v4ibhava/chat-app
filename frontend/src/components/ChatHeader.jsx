@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 import { useChatStore } from '../store/useChatStore'
-import { X, ArrowLeft, Phone, Video } from 'lucide-react'
+import { X, ArrowLeft, Phone, Video, Trash2 } from 'lucide-react'
 import UserAvatar from './UserAvatar'
 
 const formatLastSeen = (lastSeen) => {
@@ -29,10 +29,17 @@ const formatLastSeen = (lastSeen) => {
 };
 
 const ChatHeader = () => {
-    const { selectedUser, setSelectedUser, p2pStatus, startCall } = useChatStore()
+    const { selectedUser, setSelectedUser, p2pStatus, startCall, clearChatHistory } = useChatStore()
     const { onlineUsers } = useAuthStore()
     const [showProfileModal, setShowProfileModal] = useState(false)
+    const [showClearConfirm, setShowClearConfirm] = useState(false)
     
+    const handleClearChat = async () => {
+        if (!selectedUser?._id) return;
+        await clearChatHistory(selectedUser._id);
+        setShowClearConfirm(false);
+    };
+
     return (
         <div className='shrink-0 border-b border-base-300 p-3 sm:p-4'>
             <div className='flex items-center justify-between'>
@@ -93,6 +100,13 @@ const ChatHeader = () => {
                             >
                                 <Video className="w-5 h-5" />
                             </button>
+                            <button
+                                onClick={() => setShowClearConfirm(true)}
+                                className="btn btn-sm btn-ghost btn-circle text-zinc-500 hover:text-error"
+                                title="Clear Chat History"
+                            >
+                                <Trash2 className="w-5 h-5" />
+                            </button>
                         </>
                     )}
                     <button onClick={() => setSelectedUser(null)} className="hidden md:flex btn btn-sm btn-ghost btn-circle items-center justify-center">
@@ -100,6 +114,27 @@ const ChatHeader = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Confirm Clear Chat Modal */}
+            {showClearConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowClearConfirm(false)} />
+                    <div className="relative w-full max-w-xs bg-base-200 border border-base-300 rounded-3xl p-6 text-center shadow-2xl animate-fade-in">
+                        <h3 className="text-lg font-bold text-base-content mb-2">Clear Chat?</h3>
+                        <p className="text-xs text-zinc-400 mb-6">
+                            This will delete all local chat history for this user and remove any pending offline messages from the server.
+                        </p>
+                        <div className="flex gap-2">
+                            <button onClick={() => setShowClearConfirm(false)} className="btn btn-sm btn-ghost flex-1">
+                                Cancel
+                            </button>
+                            <button onClick={handleClearChat} className="btn btn-sm btn-error flex-1">
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Public Profile Detail Modal */}
             {showProfileModal && !selectedUser.isDeletedAccount && (

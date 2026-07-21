@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useGroupStore } from "../store/useGroupStore";
 import { useAuthStore } from "../store/useAuthStore";
-import { ArrowLeft, Send, Copy, ShieldAlert, Info, KeyRound } from "lucide-react";
+import { ArrowLeft, Send, Copy, ShieldAlert, Info } from "lucide-react";
 import { toast } from "react-hot-toast";
 import GroupInfoPanel from "./GroupInfoPanel";
 
 const GroupChatView = () => {
-    const { selectedGroup, setSelectedGroup, groupMessages, sendGroupMessage, approveRequest, setGroupInfoOpen, isGroupInfoOpen, requestGroupKey } = useGroupStore();
+    const { selectedGroup, setSelectedGroup, groupMessages, sendGroupMessage, approveRequest, setGroupInfoOpen } = useGroupStore();
     const { authUser } = useAuthStore();
     const [text, setText] = useState("");
     const messagesEndRef = useRef(null);
@@ -19,7 +19,6 @@ const GroupChatView = () => {
 
     const messages = groupMessages[selectedGroup._id] || [];
     const isAdmin = selectedGroup.admins?.includes(authUser?._id);
-    const isPendingKey = selectedGroup.name === "Encrypted Group";
 
     const handleSend = (e) => {
         e.preventDefault();
@@ -63,11 +62,7 @@ const GroupChatView = () => {
                                 {selectedGroup.name}
                             </h3>
                             <p className="text-xs text-zinc-500">
-                                {isPendingKey ? (
-                                    <span className="text-amber-500">⚠ Key exchange pending</span>
-                                ) : (
-                                    `${selectedGroup.members?.length || 0} members`
-                                )}
+                                {selectedGroup.members?.length || 0} members
                             </p>
                         </div>
                     </div>
@@ -106,29 +101,9 @@ const GroupChatView = () => {
                 </div>
             )}
 
-            {/* Key Exchange Warning Banner */}
-            {isPendingKey && (
-                <div className="shrink-0 bg-warning/10 border-b border-warning/20 p-4 flex flex-col items-center gap-2">
-                    <div className="flex items-center gap-2 text-warning text-sm font-semibold">
-                        <KeyRound className="w-4 h-4" />
-                        Encryption key not yet received
-                    </div>
-                    <p className="text-xs text-zinc-500 text-center max-w-sm">
-                        You cannot send or read messages until an admin shares the encryption key. Make sure a group admin is online.
-                    </p>
-                    <button
-                        onClick={() => requestGroupKey(selectedGroup._id)}
-                        className="btn btn-xs btn-warning gap-1"
-                    >
-                        <KeyRound className="w-3 h-3" />
-                        Request Key
-                    </button>
-                </div>
-            )}
-
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-                {!isPendingKey && messages.map((message) => {
+                {messages.map((message) => {
                     const isMe = message.senderId === authUser?._id;
                     const sender = selectedGroup.members?.find(m => m._id === message.senderId);
                     return (
@@ -145,7 +120,7 @@ const GroupChatView = () => {
                         </div>
                     );
                 })}
-                {!isPendingKey && messages.length === 0 && (
+                {messages.length === 0 && (
                     <div className="text-center text-zinc-500 py-12 text-sm">
                         No messages yet. Say hello!
                     </div>
@@ -159,11 +134,10 @@ const GroupChatView = () => {
                     type="text"
                     value={text}
                     onChange={(e) => setText(e.target.value)}
-                    placeholder={isPendingKey ? "Waiting for encryption key..." : "Type encrypted message..."}
+                    placeholder="Type a group message..."
                     className="input input-bordered flex-1"
-                    disabled={isPendingKey}
                 />
-                <button type="submit" className="btn btn-primary btn-circle" disabled={isPendingKey}>
+                <button type="submit" className="btn btn-primary btn-circle">
                     <Send className="w-4 h-4" />
                 </button>
             </form>

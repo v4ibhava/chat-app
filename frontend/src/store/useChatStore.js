@@ -774,6 +774,30 @@ export const useChatStore = create((set, get) => ({
         }
     },
 
+    clearChatHistory: async (friendId) => {
+        const myId = useAuthStore.getState().authUser?._id;
+        if (!myId || !friendId) return;
+
+        try {
+            const { deleteLocalMessagesForChat } = await import("../lib/db.js");
+            await deleteLocalMessagesForChat(myId, friendId);
+
+            const { selectedUser } = get();
+            if (selectedUser && selectedUser._id === friendId) {
+                set({ messages: [] });
+            }
+
+            const socket = useAuthStore.getState().socket;
+            if (socket && socket.connected) {
+                socket.emit("clear-chat-history", { to: friendId });
+            }
+            toast.success("Chat history deleted");
+        } catch (err) {
+            console.error("Failed to clear chat history:", err);
+            toast.error("Failed to clear chat history");
+        }
+    },
+
     handleTyping: (receiverId) => {
         const socket = useAuthStore.getState().socket;
         if (socket) socket.emit("typing", { receiverId });

@@ -70,3 +70,24 @@ export const getLocalMessageIds = async (myId, friendId) => {
   const messages = await getLocalMessages(myId, friendId);
   return messages.map(m => m._id);
 };
+
+export const deleteLocalMessagesForChat = async (myId, friendId) => {
+  const db = await initDB();
+  const messages = await getLocalMessages(myId, friendId);
+  if (messages.length === 0) return true;
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    let count = 0;
+    messages.forEach(m => {
+      const req = store.delete(m._id);
+      req.onsuccess = () => {
+        count++;
+        if (count === messages.length) resolve(true);
+      };
+      req.onerror = (e) => reject(e.target.error);
+    });
+  });
+};
+
