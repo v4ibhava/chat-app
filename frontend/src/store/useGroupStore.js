@@ -264,17 +264,12 @@ export const useGroupStore = create((set, get) => ({
 
             try {
                 const myKeypair = await getLocalKeypair(myId);
-                const senderUser = useAuthStore.getState().onlineUsers.includes(fromUserId)
-                    ? { publicKeyJWK: useAuthStore.getState().onlineUsers.find(u => u._id === fromUserId)?.publicKeyJWK }
-                    : null;
                 
-                // Fetch public key if not immediately in online memory
-                let pubKeyJWK = senderUser?.publicKeyJWK;
-                if (!pubKeyJWK) {
-                    const res = await axiosInstance.get(`/messages/users`);
-                    const found = res.data.find(u => u._id === fromUserId);
-                    pubKeyJWK = found?.publicKeyJWK;
-                }
+                // Fetch public key from API (onlineUsers is just ID strings, not user objects)
+                let pubKeyJWK = null;
+                const res = await axiosInstance.get(`/messages/users`);
+                const found = res.data.find(u => u._id === fromUserId);
+                pubKeyJWK = found?.publicKeyJWK;
 
                 if (myKeypair && pubKeyJWK) {
                     const senderPub = await importPublicKey(pubKeyJWK);

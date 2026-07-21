@@ -220,7 +220,7 @@ io.on("connection", (socket) => {
         try {
             // Verify group membership
             const group = await Group.findById(groupId);
-            if (group && group.members.includes(userId)) {
+            if (group && group.members.some(m => m.toString() === userId)) {
                 // Broadcast E2EE encrypted message to all online group members in the room
                 socket.to(`group_${groupId}`).emit("group-message", {
                     groupId,
@@ -252,7 +252,7 @@ io.on("connection", (socket) => {
         if (!userId) return;
         try {
             const group = await Group.findById(groupId);
-            if (!group || !group.members.includes(userId)) return;
+            if (!group || !group.members.some(m => m.toString() === userId)) return;
 
             // Forward request to all online admins
             for (const adminId of group.admins) {
