@@ -93,10 +93,10 @@ const HomePage = () => {
                 <div className="px-3 pb-3 space-y-2">
                   <button
                     onClick={() => setIsCreateModalOpen(true)}
-                    className="w-full btn btn-sm bg-[#2563eb] hover:bg-blue-600 border-none text-white flex items-center justify-center gap-1.5 rounded-full shadow-md"
+                    className="w-full py-2 bg-[#2563eb] hover:bg-blue-600 text-white flex items-center justify-center gap-1.5 rounded-xl text-sm font-semibold transition-all"
                   >
                     <Plus className="w-4 h-4" />
-                    <span className="hidden lg:inline text-xs font-semibold">New Group</span>
+                    <span className="hidden lg:inline text-xs">New Group</span>
                   </button>
                   <div className="relative">
                     <input
@@ -104,7 +104,7 @@ const HomePage = () => {
                       placeholder="Filter groups..."
                       value={groupSearchTerm}
                       onChange={(e) => setGroupSearchTerm(e.target.value)}
-                      className="input input-sm w-full pl-9 bg-[#1a1a20] border-none text-xs text-zinc-200 placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/40"
+                      className="w-full pl-9 py-2 bg-[#1a1a20] border-none text-xs text-zinc-200 placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/40"
                     />
                     <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
                   </div>

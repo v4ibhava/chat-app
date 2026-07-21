@@ -1,4 +1,5 @@
 import Group from "../models/group.model.js";
+import GroupMessage from "../models/groupMessage.model.js";
 import User from "../models/user.model.js";
 import cloudinary from "../lib/cloudinary.js";
 import { io, getReceiverSocketId } from "../lib/socket.js";
@@ -240,6 +241,40 @@ export const joinRequest = async (req, res) => {
         res.status(200).json({ message: "Join request sent to group admins" });
     } catch (error) {
         console.error("Error requesting to join group:", error.message);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+};
+
+export const getGroupMessages = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const group = await Group.findById(id);
+        if (!group) {
+            return res.status(404).json({ message: "Group not found" });
+        }
+        if (!group.members.some(m => m.toString() === req.user._id.toString())) {
+            return res.status(403).json({ message: "Not a member of this group" });
+        }
+
+        const messages = await GroupMessage.find({ groupId: id })
+            .populate("senderId", "fullName username profilePic")
+            .sort({ createdAt: 1 })
+            .lean();
+
+        const mapped = messages.map(m => ({
+            _id: m._id.toString(),
+            senderId: m.senderId._id.toString(),
+            text: m.text,
+            createdAt: m.createdAt.toISOString(),
+            sender: {
+                fullName: m.senderId.fullName,
+                username: m.senderId.username,
+            }
+        }));
+
+        res.status(200).json(mapped);
+    } catch (error) {
+        console.error("Error fetching group messages:", error.message);
         res.status(500).json({ message: "Internal Server Error" });
     }
 };

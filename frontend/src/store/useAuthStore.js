@@ -3,6 +3,7 @@ import { axiosInstance } from "../lib/axios.js";
 import toast from "react-hot-toast";
 import io from "socket.io-client";
 import { useChatStore } from "./useChatStore.js";
+import { useGroupStore } from "./useGroupStore.js";
 import { playMessageSound } from "../lib/sounds.js";
 import { getLocalKeypair, saveLocalKeypair, generateE2EEKeypair, decryptPayload, importPublicKey, deriveSharedKey } from "../lib/crypto.js";
 
@@ -198,8 +199,16 @@ export const useAuthStore = create((set, get) => ({
 
         socket.on("reconnect", (attemptNumber) => {
             console.log("Socket reconnected after", attemptNumber, "attempts");
-            // Re-emit userId on reconnect
             socket.emit("userReconnected", authUser._id);
+            // Rejoin group rooms after reconnect
+            const groupStore = useGroupStore.getState();
+            if (groupStore.groups.length > 0) {
+                socket.emit("join-group-rooms", groupStore.groups.map(g => g._id));
+                // Re-fetch messages for the selected group if any
+                if (groupStore.selectedGroup?._id) {
+                    groupStore.fetchGroupMessages(groupStore.selectedGroup._id);
+                }
+            }
         });
 
         socket.on("reconnect_attempt", (attemptNumber) => {

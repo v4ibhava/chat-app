@@ -3,6 +3,7 @@ import http from "http";
 import express from "express";
 import User from "../models/user.model.js";
 import OfflineMessage from "../models/offlineMessage.model.js";
+import GroupMessage from "../models/groupMessage.model.js";
 import Group from "../models/group.model.js";
 
 
@@ -238,14 +239,33 @@ io.on("connection", (socket) => {
     socket.on("group-message", async ({ groupId, message }) => {
         if (!userId) return;
         try {
-            // Verify group membership
             const group = await Group.findById(groupId);
             if (group && group.members.some(m => m.toString() === userId)) {
-                // Broadcast E2EE encrypted message to all online group members in the room
+                // Persist to database
+                const saved = await GroupMessage.create({
+                    groupId,
+                    senderId: userId,
+                    text: message.text,
+                });
+
+                const persistentMessage = {
+                    ...message,
+                    _id: saved._id.toString(),
+                    createdAt: saved.createdAt.toISOString(),
+                };
+
                 socket.to(`group_${groupId}`).emit("group-message", {
                     groupId,
-                    message,
+                    message: persistentMessage,
                     senderId: userId
+                });
+
+                // Also send back to sender with real _id so they can update their local copy
+                socket.emit("group-message-ack", {
+                    groupId,
+                    tempId: message._id,
+                    realId: saved._id.toString(),
+                    createdAt: saved.createdAt.toISOString(),
                 });
             }
         } catch (err) {

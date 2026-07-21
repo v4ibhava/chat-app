@@ -7,9 +7,10 @@ import { playMessageSound } from "../lib/sounds.js";
 export const useGroupStore = create((set, get) => ({
     groups: [],
     selectedGroup: null,
-    groupMessages: {}, // { groupId: [messages] }
+    groupMessages: {},
     isGroupsLoading: false,
     isGroupInfoOpen: false,
+    isMessagesLoading: false,
 
     getGroups: async () => {
         set({ isGroupsLoading: true });
@@ -19,14 +20,12 @@ export const useGroupStore = create((set, get) => ({
 
             set({ groups: groupsList });
 
-            // Automatically sync selectedGroup if open
             const { selectedGroup } = get();
             if (selectedGroup) {
                 const updated = groupsList.find(g => g._id === selectedGroup._id);
                 if (updated) set({ selectedGroup: updated });
             }
 
-            // Join socket rooms for instant real-time broadcasts
             const socket = useAuthStore.getState().socket;
             if (socket) {
                 socket.emit("join-group-rooms", groupsList.map(g => g._id));
@@ -35,6 +34,24 @@ export const useGroupStore = create((set, get) => ({
             toast.error(error.response?.data?.message || "Failed to load groups");
         } finally {
             set({ isGroupsLoading: false });
+        }
+    },
+
+    fetchGroupMessages: async (groupId) => {
+        if (!groupId) return;
+        set({ isMessagesLoading: true });
+        try {
+            const res = await axiosInstance.get(`/groups/${groupId}/messages`);
+            set({
+                groupMessages: {
+                    ...get().groupMessages,
+                    [groupId]: res.data
+                }
+            });
+        } catch (error) {
+            console.error("Failed to fetch group messages:", error);
+        } finally {
+            set({ isMessagesLoading: false });
         }
     },
 
@@ -137,33 +154,28 @@ export const useGroupStore = create((set, get) => ({
         const myId = useAuthStore.getState().authUser?._id;
         if (!myId || !text.trim()) return;
 
-        try {
-            const payload = {
-                _id: "gmsg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9),
-                senderId: myId,
-                text: text.trim(),
-                createdAt: new Date().toISOString()
-            };
+        const tempId = "gmsg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
+        const payload = {
+            _id: tempId,
+            senderId: myId,
+            text: text.trim(),
+            createdAt: new Date().toISOString()
+        };
 
-            const socket = useAuthStore.getState().socket;
-            if (socket) {
-                socket.emit("group-message", {
-                    groupId,
-                    message: payload
-                });
-
-                // Store locally in client memory
-                const existing = get().groupMessages[groupId] || [];
-                set({
-                    groupMessages: {
-                        ...get().groupMessages,
-                        [groupId]: [...existing, payload]
-                    }
-                });
+        const existing = get().groupMessages[groupId] || [];
+        set({
+            groupMessages: {
+                ...get().groupMessages,
+                [groupId]: [...existing, payload]
             }
-        } catch (err) {
-            console.error("Group message send failed:", err);
-            toast.error("Failed to send message.");
+        });
+
+        const socket = useAuthStore.getState().socket;
+        if (socket) {
+            socket.emit("group-message", {
+                groupId,
+                message: payload
+            });
         }
     },
 
@@ -185,20 +197,34 @@ export const useGroupStore = create((set, get) => ({
             playMessageSound();
         });
 
+        socket.on("group-message-ack", ({ groupId, tempId, realId, createdAt }) => {
+            const messages = get().groupMessages[groupId] || [];
+            set({
+                groupMessages: {
+                    ...get().groupMessages,
+                    [groupId]: messages.map(m =>
+                        m._id === tempId
+                            ? { ...m, _id: realId, createdAt: createdAt || m.createdAt }
+                            : m
+                    )
+                }
+            });
+        });
+
         socket.on("group-deleted", ({ groupId }) => {
             const { selectedGroup } = get();
             set({
                 groups: get().groups.filter(g => g._id !== groupId),
                 ...(selectedGroup?._id === groupId ? { selectedGroup: null, isGroupInfoOpen: false } : {})
             });
-            toast("A group was deleted.", { icon: "🗑️" });
+            toast("A group was deleted.", { icon: "\u{1F5D1}\uFE0F" });
         });
 
-        socket.on("group-member-update", ({ groupId, group }) => {
+        socket.on("group-member-update", () => {
             get().getGroups();
         });
 
-        socket.on("group-metadata-updated", ({ groupId }) => {
+        socket.on("group-metadata-updated", () => {
             get().getGroups();
         });
     },
@@ -207,6 +233,7 @@ export const useGroupStore = create((set, get) => ({
         const socket = useAuthStore.getState().socket;
         if (socket) {
             socket.off("group-message");
+            socket.off("group-message-ack");
             socket.off("group-deleted");
             socket.off("group-member-update");
             socket.off("group-metadata-updated");
@@ -233,6 +260,11 @@ export const useGroupStore = create((set, get) => ({
         }
     },
 
-    setSelectedGroup: (selectedGroup) => set({ selectedGroup, isGroupInfoOpen: false }),
+    setSelectedGroup: (selectedGroup) => {
+        set({ selectedGroup, isGroupInfoOpen: false });
+        if (selectedGroup?._id) {
+            get().fetchGroupMessages(selectedGroup._id);
+        }
+    },
     setGroupInfoOpen: (isOpen) => set({ isGroupInfoOpen: isOpen })
 }));

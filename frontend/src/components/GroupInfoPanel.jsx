@@ -94,29 +94,26 @@ const GroupInfoPanel = () => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-stretch justify-end">
-            {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-black/50 backdrop-blur-sm"
                 onClick={() => setGroupInfoOpen(false)}
             />
 
-            {/* Panel */}
-            <div className="relative w-full max-w-sm bg-base-100 border-l border-base-300 shadow-2xl flex flex-col animate-slide-in-right overflow-hidden">
+            <div className="relative w-full max-w-sm bg-[#18181c] border-l border-[#282832] shadow-2xl flex flex-col animate-slide-in-right overflow-hidden">
                 {/* Header */}
-                <div className="shrink-0 p-4 border-b border-base-300 flex items-center justify-between bg-base-200/50">
-                    <h3 className="font-bold text-sm flex items-center gap-2">
+                <div className="shrink-0 p-4 border-b border-[#282832] flex items-center justify-between bg-[#1f1f26]">
+                    <h3 className="font-bold text-sm flex items-center gap-2 text-white">
                         <Users className="w-4 h-4 text-primary" />
                         Group Info
                     </h3>
                     <button
                         onClick={() => setGroupInfoOpen(false)}
-                        className="btn btn-sm btn-ghost btn-circle"
+                        className="w-8 h-8 rounded-full bg-[#2a2a34] hover:bg-[#33333e] flex items-center justify-center text-zinc-400 hover:text-white transition-all"
                     >
                         <X className="w-4 h-4" />
                     </button>
                 </div>
 
-                {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto">
                     {/* Avatar Section */}
                     <div className="flex flex-col items-center pt-8 pb-6 px-6">
@@ -154,17 +151,15 @@ const GroupInfoPanel = () => {
                             />
                         </div>
 
-                        {/* Remove avatar button */}
                         {isAdmin && selectedGroup.groupPic && (
                             <button
                                 onClick={() => removeGroupAvatar(selectedGroup._id)}
-                                className="mt-2 text-xs text-error hover:underline"
+                                className="mt-2 text-xs text-red-400 hover:underline hover:text-red-300 transition-colors"
                             >
                                 Remove photo
                             </button>
                         )}
 
-                        {/* Group Name */}
                         <div className="mt-4 flex items-center gap-2">
                             {isEditingName ? (
                                 <div className="flex items-center gap-2">
@@ -173,27 +168,27 @@ const GroupInfoPanel = () => {
                                         value={editName}
                                         onChange={(e) => setEditName(e.target.value)}
                                         onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
-                                        className="input input-sm input-bordered w-48 text-center"
+                                        className="px-3 py-1.5 rounded-xl bg-[#1a1a20] border border-[#2a2a34] text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary/40 w-44"
                                         autoFocus
                                         maxLength={50}
                                     />
-                                    <button onClick={handleSaveName} className="btn btn-sm btn-primary btn-circle">
+                                    <button onClick={handleSaveName} className="w-8 h-8 rounded-full bg-primary/80 hover:bg-primary flex items-center justify-center text-white transition-all">
                                         <Check className="w-3.5 h-3.5" />
                                     </button>
-                                    <button onClick={() => setIsEditingName(false)} className="btn btn-sm btn-ghost btn-circle">
+                                    <button onClick={() => setIsEditingName(false)} className="w-8 h-8 rounded-full bg-[#2a2a34] hover:bg-[#33333e] flex items-center justify-center text-zinc-400 hover:text-white transition-all">
                                         <X className="w-3.5 h-3.5" />
                                     </button>
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2">
-                                    <h2 className="text-xl font-bold text-base-content">{selectedGroup.name}</h2>
+                                    <h2 className="text-xl font-bold text-white">{selectedGroup.name}</h2>
                                     {isAdmin && (
                                         <button
                                             onClick={handleEditName}
-                                            className="btn btn-xs btn-ghost btn-circle opacity-60 hover:opacity-100"
+                                            className="w-7 h-7 rounded-full bg-[#2a2a34] hover:bg-[#33333e] flex items-center justify-center text-zinc-400 hover:text-white transition-all"
                                             title="Edit name"
                                         >
-                                            <Pencil className="w-3.5 h-3.5" />
+                                            <Pencil className="w-3 h-3" />
                                         </button>
                                     )}
                                 </div>
@@ -208,20 +203,19 @@ const GroupInfoPanel = () => {
                         <div className="px-6 pb-4">
                             <button
                                 onClick={handleCopyInvite}
-                                className="btn btn-sm btn-outline w-full gap-2"
+                                className="w-full py-2 rounded-xl border border-[#2a2a34] hover:bg-[#1f1f26] text-zinc-300 hover:text-white text-sm font-semibold transition-all flex items-center justify-center gap-2"
                             >
-                                {copied ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
+                                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                                 {copied ? "Copied!" : "Copy Invite Link"}
                             </button>
                         </div>
                     )}
 
-                    {/* Divider */}
-                    <div className="border-t border-base-300 mx-4" />
+                    <div className="border-t border-[#282832] mx-4" />
 
                     {/* Members List */}
                     <div className="px-4 py-4">
-                        <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-3 px-2">
+                        <h4 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 mb-3 px-2">
                             Members ({selectedGroup.members?.length || 0})
                         </h4>
                         <div className="space-y-1">
@@ -233,7 +227,7 @@ const GroupInfoPanel = () => {
                                 return (
                                     <div
                                         key={member._id}
-                                        className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-base-200/60 transition-colors group"
+                                        className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-[#1f1f26] transition-colors group"
                                     >
                                         <UserAvatar
                                             src={member.profilePic}
@@ -244,7 +238,7 @@ const GroupInfoPanel = () => {
                                         />
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-1.5">
-                                                <span className="font-medium text-sm truncate">
+                                                <span className="font-medium text-sm text-white truncate">
                                                     {member.fullName}
                                                     {isMe && <span className="text-zinc-400 font-normal"> (You)</span>}
                                                 </span>
@@ -262,26 +256,25 @@ const GroupInfoPanel = () => {
                                                         Admin
                                                     </span>
                                                 )}
-                                                <span className={`text-[10px] ${isOnline ? "text-green-500" : "text-zinc-500"}`}>
+                                                <span className={`text-[10px] ${isOnline ? "text-emerald-400" : "text-zinc-500"}`}>
                                                     {isOnline ? "Online" : "Offline"}
                                                 </span>
                                             </div>
                                         </div>
 
-                                        {/* Remove button (admin only) */}
                                         {isAdmin && !isMe && role !== "creator" && (
                                             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                                 {removingMemberId === member._id ? (
                                                     <div className="flex items-center gap-1">
                                                         <button
                                                             onClick={() => handleRemoveMember(member._id)}
-                                                            className="btn btn-xs btn-error"
+                                                            className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-all"
                                                         >
                                                             Remove
                                                         </button>
                                                         <button
                                                             onClick={() => setRemovingMemberId(null)}
-                                                            className="btn btn-xs btn-ghost"
+                                                            className="px-2.5 py-1 rounded-lg bg-[#2a2a34] hover:bg-[#33333e] text-zinc-400 hover:text-white text-xs font-semibold transition-all"
                                                         >
                                                             Cancel
                                                         </button>
@@ -289,7 +282,7 @@ const GroupInfoPanel = () => {
                                                 ) : (
                                                     <button
                                                         onClick={() => setRemovingMemberId(member._id)}
-                                                        className="btn btn-xs btn-ghost text-error"
+                                                        className="w-8 h-8 rounded-full bg-[#2a2a34] hover:bg-red-500/20 flex items-center justify-center text-zinc-400 hover:text-red-400 transition-all"
                                                         title="Remove member"
                                                     >
                                                         <UserMinus className="w-3.5 h-3.5" />
@@ -306,24 +299,24 @@ const GroupInfoPanel = () => {
                     {/* Pending Requests */}
                     {isAdmin && selectedGroup.pendingRequests?.length > 0 && (
                         <>
-                            <div className="border-t border-base-300 mx-4" />
+                            <div className="border-t border-[#282832] mx-4" />
                             <div className="px-4 py-4">
-                                <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-500 mb-3 px-2">
+                                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-amber-500 mb-3 px-2">
                                     Pending Requests ({selectedGroup.pendingRequests.length})
                                 </h4>
                                 <div className="space-y-1">
                                     {selectedGroup.pendingRequests.map(req => (
-                                        <div key={req._id} className="flex items-center gap-3 p-2.5 rounded-xl bg-amber-500/5">
+                                        <div key={req._id} className="flex items-center gap-3 p-2.5 rounded-xl bg-amber-500/5 border border-amber-500/10">
                                             <UserAvatar
                                                 src={req.profilePic}
                                                 alt={req.fullName}
                                                 size="md"
                                                 showStatus={false}
                                             />
-                                            <span className="flex-1 text-sm font-medium truncate">{req.fullName}</span>
+                                            <span className="flex-1 text-sm font-medium text-white truncate">{req.fullName}</span>
                                             <button
                                                 onClick={() => useGroupStore.getState().approveRequest(selectedGroup._id, req._id)}
-                                                className="btn btn-xs btn-primary"
+                                                className="px-3 py-1.5 rounded-lg bg-primary/80 hover:bg-primary text-white text-xs font-semibold transition-all"
                                             >
                                                 Approve
                                             </button>
@@ -336,44 +329,42 @@ const GroupInfoPanel = () => {
                 </div>
 
                 {/* Bottom Actions */}
-                <div className="shrink-0 border-t border-base-300 p-4 space-y-2 bg-base-200/30">
-                    {/* Leave Group */}
+                <div className="shrink-0 border-t border-[#282832] p-4 space-y-2 bg-[#1f1f26]/50">
                     {!showLeaveConfirm ? (
                         <button
                             onClick={() => setShowLeaveConfirm(true)}
-                            className="btn btn-sm btn-outline btn-error w-full gap-2"
+                            className="w-full py-2 rounded-xl border border-red-500/30 hover:bg-red-500/10 text-red-400 hover:text-red-300 text-sm font-semibold transition-all flex items-center justify-center gap-2"
                         >
                             <LogOut className="w-4 h-4" />
                             Leave Group
                         </button>
                     ) : (
                         <div className="flex gap-2">
-                            <button onClick={handleLeaveGroup} className="btn btn-sm btn-error flex-1">
+                            <button onClick={handleLeaveGroup} className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-all">
                                 Confirm Leave
                             </button>
-                            <button onClick={() => setShowLeaveConfirm(false)} className="btn btn-sm btn-ghost flex-1">
+                            <button onClick={() => setShowLeaveConfirm(false)} className="flex-1 py-2 rounded-xl bg-[#2a2a34] hover:bg-[#33333e] text-zinc-400 hover:text-white text-sm font-semibold transition-all">
                                 Cancel
                             </button>
                         </div>
                     )}
 
-                    {/* Delete Group (creator only) */}
                     {isCreator && (
                         <>
                             {!showDeleteConfirm ? (
                                 <button
                                     onClick={() => setShowDeleteConfirm(true)}
-                                    className="btn btn-sm btn-error w-full gap-2"
+                                    className="w-full py-2 rounded-xl bg-red-600/70 hover:bg-red-600 text-white text-sm font-semibold transition-all flex items-center justify-center gap-2"
                                 >
                                     <Trash2 className="w-4 h-4" />
                                     Delete Group
                                 </button>
                             ) : (
                                 <div className="flex gap-2">
-                                    <button onClick={handleDeleteGroup} className="btn btn-sm btn-error flex-1">
+                                    <button onClick={handleDeleteGroup} className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-all">
                                         Confirm Delete
                                     </button>
-                                    <button onClick={() => setShowDeleteConfirm(false)} className="btn btn-sm btn-ghost flex-1">
+                                    <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-2 rounded-xl bg-[#2a2a34] hover:bg-[#33333e] text-zinc-400 hover:text-white text-sm font-semibold transition-all">
                                         Cancel
                                     </button>
                                 </div>
