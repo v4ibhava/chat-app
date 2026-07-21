@@ -5,7 +5,8 @@ import io from "socket.io-client";
 import { useChatStore } from "./useChatStore.js";
 import { useGroupStore } from "./useGroupStore.js";
 import { playMessageSound } from "../lib/sounds.js";
-import { getLocalKeypair, saveLocalKeypair, generateE2EEKeypair, decryptPayload, importPublicKey, deriveSharedKey } from "../lib/crypto.js";
+import { getLocalKeypair, saveLocalKeypair, generateE2EEKeypair, decryptPayload, importPublicKey, deriveSharedKey, importGroupKey } from "../lib/crypto.js";
+import { saveLocalMessage, deleteLocalMessage } from "../lib/db.js";
 
 
 const rawBaseUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.MODE === "development" ? "http://localhost:5000" : "/");
@@ -276,7 +277,7 @@ export const useAuthStore = create((set, get) => ({
                 }
             }
 
-            await chatStore.saveLocalMessage(msg);
+            await saveLocalMessage(msg);
             playMessageSound();
             
             if (chatStore.selectedUser && chatStore.selectedUser._id === from) {
@@ -292,8 +293,8 @@ export const useAuthStore = create((set, get) => ({
 
         socket.on("chat-fallback-delete", async (payload) => {
             const { from, messageId } = payload;
+            await deleteLocalMessage(messageId);
             const chatStore = useChatStore.getState();
-            await chatStore.deleteLocalMessage(messageId);
             if (chatStore.selectedUser && chatStore.selectedUser._id === from) {
                 useChatStore.setState({ messages: chatStore.messages.filter(m => m._id !== messageId) });
             }

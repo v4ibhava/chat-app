@@ -206,3 +206,59 @@ export const decryptGroupMetadata = async (ciphertextBase64, ivBase64, groupKey)
     const decoder = new TextDecoder();
     return decoder.decode(decryptedBuffer);
 };
+
+// Group Sender Key Protocol
+
+// Generates a new AES-256-GCM sender key for a group
+export const generateGroupSenderKey = async () => {
+    return await generateGroupKey();
+};
+
+// Encrypts a message using a group's sender key
+export const encryptGroupMessage = async (plaintext, senderKey) => {
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(plaintext);
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+
+    const ciphertextBuffer = await window.crypto.subtle.encrypt(
+        {
+            name: "AES-GCM",
+            iv
+        },
+        senderKey,
+        encoded
+    );
+
+    return {
+        ciphertext: btoa(String.fromCharCode(...new Uint8Array(ciphertextBuffer))),
+        iv: btoa(String.fromCharCode(...iv))
+    };
+};
+
+// Decrypts a message using a group's sender key
+export const decryptGroupMessage = async (ciphertext, iv, senderKey) => {
+    const ciphertextUint8 = new Uint8Array(atob(ciphertext).split("").map(c => c.charCodeAt(0)));
+    const ivUint8 = new Uint8Array(atob(iv).split("").map(c => c.charCodeAt(0)));
+
+    const decryptedBuffer = await window.crypto.subtle.decrypt(
+        {
+            name: "AES-GCM",
+            iv: ivUint8
+        },
+        senderKey,
+        ciphertextUint8
+    );
+
+    const decoder = new TextDecoder();
+    return decoder.decode(decryptedBuffer);
+};
+
+// Distributes a sender key to a new group member
+export const distributeSenderKey = async (senderKey) => {
+    return await exportGroupKey(senderKey);
+};
+
+// Rotates sender keys after a member is removed
+export const rotateSenderKeys = async () => {
+    return await generateGroupKey();
+};

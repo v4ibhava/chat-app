@@ -243,6 +243,7 @@ export const useGroupStore = create((set, get) => ({
         if (socket) {
             socket.off("group-created");
             socket.off("group-message");
+            socket.off("group-message-ack");
             socket.off("group-deleted");
             socket.off("group-member-update");
             socket.off("group-metadata-updated");
