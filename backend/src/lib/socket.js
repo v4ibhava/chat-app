@@ -31,6 +31,7 @@ const io = new Server(server, {
         credentials: true,
     },
     transports: ['websocket', 'polling'], // Fallback for slow connections
+    maxHttpBufferSize: 1e8, // 100MB max buffer for binary/fallback file transfers
 });
 
 // used to store online users
@@ -405,4 +406,3 @@ io.on("connection", (socket) => {
 });
 
 export { io, app, server };
-

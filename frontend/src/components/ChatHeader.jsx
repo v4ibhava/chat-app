@@ -52,9 +52,7 @@ const ChatHeader = () => {
                                 {isOnline && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>}
                                 <span className={`text-xs ${isOnline ? 'text-emerald-400 font-medium' : 'text-zinc-500'}`}>
                                     {selectedUser.isDeletedAccount ? 'Account Deleted' :
-                                     p2pStatus === 'connected' ? 'Connected' :
-                                     p2pStatus === 'connecting' ? 'Connecting...' : 
-                                     isOnline ? 'Online' : 'Offline'}
+                                     isOnline ? (p2pStatus === 'connected' ? 'Online • Direct P2P' : 'Online') : 'Offline'}
                                 </span>
                             </div>
                         </div>

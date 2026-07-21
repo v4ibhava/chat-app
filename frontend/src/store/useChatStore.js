@@ -13,6 +13,7 @@ const peerConnections = {}; // { friendId: RTCPeerConnection }
 const dataChannels = {}; // { friendId: RTCDataChannel }
 const fileTransfers = {}; // { fileId: { meta, chunks, receivedSize } }
 const activeSendFileTransfers = {}; // { fileId: { file, peerId, messageId, createdAt, text, isSync, resume } }
+const p2pRetryCounts = {}; // { friendId: number }
 let callIceQueue = [];
 let screenAudioMix = null;
 
@@ -21,8 +22,15 @@ const peerConfiguration = {
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
         { urls: "stun:stun2.l.google.com:19302" },
-        { urls: "stun:stun.services.mozilla.com" }
-    ]
+        { urls: "stun:stun3.l.google.com:19302" },
+        { urls: "stun:stun4.l.google.com:19302" },
+        { urls: "stun:stun.services.mozilla.com:3478" },
+        { urls: "stun:stun.cloudflare.com:3478" },
+        { urls: "stun:stun.matrix.org:443" },
+        { urls: "stun:stun.nextcloud.com:443" },
+        { urls: "stun:global.stun.twilio.com:3478" }
+    ],
+    iceCandidatePoolSize: 10
 };
 
 export const useChatStore = create((set, get) => ({
@@ -163,23 +171,29 @@ export const useChatStore = create((set, get) => ({
             console.log(`P2P Connection with ${friendId}: ${pc.connectionState}`);
             if (pc.connectionState === "connected") {
                 set({ p2pStatus: "connected" });
+                p2pRetryCounts[friendId] = 0;
             } else if (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed") {
                 set({ p2pStatus: "offline" });
                 delete peerConnections[friendId];
                 delete dataChannels[friendId];
 
-                // Auto-reconnect if the user is still online and we are still viewing their chat
+                const retries = (p2pRetryCounts[friendId] || 0) + 1;
+                p2pRetryCounts[friendId] = retries;
+
+                // Auto-reconnect up to 2 attempts if user is still online and we are still viewing their chat
                 const onlineUsers = useAuthStore.getState().onlineUsers;
                 const isFriendOnline = onlineUsers.includes(friendId);
                 const selectedUser = get().selectedUser;
                 
-                if (isFriendOnline && selectedUser && selectedUser._id === friendId) {
-                    console.log(`Attempting P2P reconnection with ${friendId}...`);
+                if (retries <= 2 && isFriendOnline && selectedUser && selectedUser._id === friendId) {
+                    console.log(`Attempting P2P reconnection with ${friendId} (Attempt ${retries}/2)...`);
                     setTimeout(() => {
                         if (get().selectedUser?._id === friendId) {
                             get().connectToPeer(friendId);
                         }
-                    }, 3000);
+                    }, 4000);
+                } else {
+                    console.log(`P2P WebRTC failed or reached max retries for ${friendId}. Utilizing Socket fallback.`);
                 }
             }
         };
@@ -485,7 +499,39 @@ export const useChatStore = create((set, get) => ({
 
         const dc = dataChannels[friendId];
         if (!dc || dc.readyState !== "open") {
-            toast.error("User is offline. Cannot send files.");
+            console.log("P2P DataChannel unavailable. Sending file via Socket fallback...");
+            const messageId = existingMessageId || "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
+            const createdAt = existingCreatedAt || new Date().toISOString();
+
+            const localMsg = {
+                _id: messageId,
+                chatKey: `${myId}_${friendId}`,
+                senderId: myId,
+                receiverId: friendId,
+                text: text || "",
+                fileBlob: file, // Keep actual file/image binary in IndexedDB
+                image: file.type && file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+                fileName: file.name,
+                fileSize: file.size,
+                fileType: file.type,
+                createdAt
+            };
+
+            await saveLocalMessage(localMsg);
+            if (!existingMessageId) {
+                set({ messages: [...get().messages, localMsg] });
+            }
+
+            const socket = useAuthStore.getState().socket;
+            if (socket) {
+                socket.emit("chat-fallback-message", {
+                    to: friendId,
+                    message: localMsg
+                });
+                toast.success(`File "${file.name}" sent!`);
+            } else {
+                toast.error("Offline. Message queued locally.");
+            }
             return;
         }
 
@@ -949,23 +995,29 @@ export const useChatStore = create((set, get) => ({
             pc.onconnectionstatechange = () => {
                 if (pc.connectionState === "connected") {
                     set({ p2pStatus: "connected" });
+                    p2pRetryCounts[from] = 0;
                 } else if (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed") {
                     set({ p2pStatus: "offline" });
                     delete peerConnections[from];
                     delete dataChannels[from];
 
-                    // Auto-reconnect if the user is still online and we are still viewing their chat
+                    const retries = (p2pRetryCounts[from] || 0) + 1;
+                    p2pRetryCounts[from] = retries;
+
+                    // Auto-reconnect up to 2 attempts if user is still online and we are still viewing their chat
                     const onlineUsers = useAuthStore.getState().onlineUsers;
                     const isFriendOnline = onlineUsers.includes(from);
                     const selectedUser = get().selectedUser;
                     
-                    if (isFriendOnline && selectedUser && selectedUser._id === from) {
-                        console.log(`Attempting P2P reconnection with ${from}...`);
+                    if (retries <= 2 && isFriendOnline && selectedUser && selectedUser._id === from) {
+                        console.log(`Attempting P2P reconnection with ${from} (Attempt ${retries}/2)...`);
                         setTimeout(() => {
                             if (get().selectedUser?._id === from) {
                                 get().connectToPeer(from);
                             }
-                        }, 3000);
+                        }, 4000);
+                    } else {
+                        console.log(`P2P WebRTC failed or reached max retries for ${from}. Utilizing Socket fallback.`);
                     }
                 }
             };

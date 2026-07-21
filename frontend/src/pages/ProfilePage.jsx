@@ -3,6 +3,7 @@ import { Camera, Mail, Save, User } from "lucide-react";
 import toast from "react-hot-toast";
 import UserAvatar from "../components/UserAvatar";
 import { useAuthStore } from "../store/useAuthStore";
+import { compressImage } from "../lib/imageUtils";
 
 const ProfilePage = () => {
   const { authUser, isUpdatingProfile, updateProfile } = useAuthStore();
@@ -26,17 +27,30 @@ const ProfilePage = () => {
     username !== (authUser?.username || "") ||
     email !== (authUser?.email || "");
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64Image = reader.result;
-      setSelectedImg(base64Image);
-      await updateProfile({ profilePic: base64Image });
-    };
-    reader.readAsDataURL(file);
+    if (!file.type.startsWith("image/")) {
+      return toast.error("Please select an image file");
+    }
+
+    const toastId = toast.loading("Uploading profile picture...");
+    try {
+      const compressedBase64 = await compressImage(file, 800, 800, 0.85);
+      const success = await updateProfile({ profilePic: compressedBase64 });
+      if (success) {
+        setSelectedImg(compressedBase64);
+        toast.dismiss(toastId);
+      } else {
+        toast.dismiss(toastId);
+        setSelectedImg(null);
+      }
+    } catch (err) {
+      console.error("Error processing image:", err);
+      toast.error("Failed to process image", { id: toastId });
+      setSelectedImg(null);
+    }
   };
 
   const handleSaveDetails = async (e) => {
