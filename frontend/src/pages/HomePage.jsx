@@ -133,7 +133,7 @@ const HomePage = () => {
                           />
                         ) : (
                           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600/30 to-indigo-600/30 flex items-center justify-center text-blue-400 font-bold shrink-0 text-sm">
-                            {group.name.substring(0, 2).toUpperCase()}
+                            {(group.name || "G").substring(0, 2).toUpperCase()}
                           </div>
                         )}
                         <div className="hidden lg:block min-w-0 flex-1">

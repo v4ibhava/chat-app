@@ -129,7 +129,7 @@ const GroupInfoPanel = () => {
                                 />
                             ) : (
                                 <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center text-3xl font-bold text-primary ring-4 ring-primary/20 shadow-lg">
-                                    {selectedGroup.name.substring(0, 2).toUpperCase()}
+                                    {(selectedGroup.name || "G").substring(0, 2).toUpperCase()}
                                 </div>
                             )}
                             {isAdmin && (
