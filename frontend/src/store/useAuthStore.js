@@ -5,7 +5,7 @@ import io from "socket.io-client";
 import { useChatStore } from "./useChatStore.js";
 import { useGroupStore } from "./useGroupStore.js";
 import { playMessageSound } from "../lib/sounds.js";
-import { getLocalKeypair, saveLocalKeypair, generateE2EEKeypair, decryptPayload, importPublicKey, deriveSharedKey, importGroupKey } from "../lib/crypto.js";
+import { getLocalKeypair, saveLocalKeypair, generateE2EEKeypair, decryptPayload, importPublicKey, deriveSharedKey } from "../lib/crypto.js";
 import { saveLocalMessage, deleteLocalMessage } from "../lib/db.js";
 
 
@@ -71,7 +71,6 @@ export const useAuthStore = create((set, get) => ({
             const message = error.response?.data?.message || "Signup failed";
             return { success: false, message };
         } finally {
-            set({ isSignUp: true ? false : false }); // Keep standard logic
             set({ isSignUp: false });
         }
     },
@@ -123,10 +122,12 @@ export const useAuthStore = create((set, get) => ({
                 userId: authUser._id
             },
             reconnection: true,
-            reconnectionAttempts: 5,
+            reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            timeout: 10000,
+            reconnectionDelayMax: 4000,
+            timeout: 20000,
+            transports: ["websocket", "polling"],
+            withCredentials: true,
         });
 
         socket.connect();
@@ -192,6 +193,14 @@ export const useAuthStore = create((set, get) => ({
         // Handle connection events
         socket.on("connect", () => {
             console.log("Socket connected:", socket.id);
+            socket.emit("userReconnected", authUser._id);
+
+            const groupStore = useGroupStore.getState();
+            if (groupStore.groups.length > 0) {
+                socket.emit("join-group-rooms", groupStore.groups.map(g => g._id));
+            } else {
+                groupStore.getGroups();
+            }
         });
 
         socket.on("disconnect", (reason) => {

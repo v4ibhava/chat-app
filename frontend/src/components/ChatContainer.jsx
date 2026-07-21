@@ -20,7 +20,7 @@ const ChatContainer = () => {
     fileProgress 
   } = useChatStore();
   
-  const { authUser } = useAuthStore();
+  const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
@@ -35,7 +35,7 @@ const ChatContainer = () => {
     getMessages(selectedUser._id);
     subscribeToMessages();
     return () => unSubscribeToMessages();
-  }, [selectedUser._id, getMessages, subscribeToMessages, unSubscribeToMessages]);
+  }, [selectedUser._id, getMessages, subscribeToMessages, unSubscribeToMessages, socket]);
 
   useEffect(() => {
     scrollToBottom();

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useChatStore } from "../store/useChatStore";
 import { useGroupStore } from "../store/useGroupStore";
+import { useAuthStore } from "../store/useAuthStore";
 import ChatContainer from "../components/ChatContainer";
 import GroupChatView from "../components/GroupChatView";
 import NoChatSelected from "../components/NoChatSelected";
@@ -12,6 +13,7 @@ import { Users, FolderPlus, Plus, Search, SquarePen } from "lucide-react";
 const HomePage = () => {
   const { selectedUser, setSelectedUser, users } = useChatStore();
   const { selectedGroup, setSelectedGroup, getGroups, groups, createGroup, subscribeToGroupSignals, unsubscribeFromGroupSignals } = useGroupStore();
+  const { socket } = useAuthStore();
   const [searchParams] = useSearchParams();
   const userIdFromUrl = searchParams.get("userId");
 
@@ -23,7 +25,7 @@ const HomePage = () => {
     getGroups();
     subscribeToGroupSignals();
     return () => unsubscribeFromGroupSignals();
-  }, [getGroups, subscribeToGroupSignals, unsubscribeFromGroupSignals]);
+  }, [getGroups, subscribeToGroupSignals, unsubscribeFromGroupSignals, socket]);
 
   useEffect(() => {
     if (userIdFromUrl) {

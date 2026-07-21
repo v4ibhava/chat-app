@@ -420,7 +420,7 @@ export const useChatStore = create((set, get) => ({
         }
 
         if (data.type === "file-meta") {
-            const { fileId, fileName, fileSize, fileType, messageId, senderId, receiverId, createdAt, text, isSync } = data.meta;
+            const { fileId, fileName, senderId, isSync } = data.meta;
             fileTransfers[fileId] = {
                 meta: data.meta,
                 chunks: [],
@@ -696,51 +696,64 @@ export const useChatStore = create((set, get) => ({
         await saveLocalMessage(localMsg);
         set({ messages: [...messages, localMsg] });
 
-        // Send via P2P if active, otherwise fallback to socket.io
+        const sendSocketFallback = async () => {
+            const socket = useAuthStore.getState().socket;
+            if (!socket) return;
+
+            try {
+                if (!selectedUser.publicKeyJWK) {
+                    console.warn("Recipient has no E2EE public key. Sending plaintext fallback.");
+                    socket.emit("chat-fallback-message", {
+                        to: friendId,
+                        message: localMsg
+                    });
+                    return;
+                }
+
+                const myKeypair = await getLocalKeypair(myId);
+                if (!myKeypair) {
+                    console.error("Local private key missing. Sending plaintext fallback.");
+                    socket.emit("chat-fallback-message", {
+                        to: friendId,
+                        message: localMsg
+                    });
+                    return;
+                }
+
+                const remotePub = await importPublicKey(selectedUser.publicKeyJWK);
+                const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
+                const encrypted = await encryptPayload(localMsg, sharedKey);
+
+                socket.emit("chat-fallback-message", {
+                    to: friendId,
+                    message: {
+                        isEncrypted: true,
+                        iv: encrypted.iv,
+                        ciphertext: encrypted.ciphertext,
+                        senderId: myId
+                    }
+                });
+            } catch (e) {
+                console.error("Failed to encrypt fallback message. Sending plaintext fallback:", e);
+                socket.emit("chat-fallback-message", {
+                    to: friendId,
+                    message: localMsg
+                });
+            }
+        };
+
+        // Use the socket path for reliable delivery, while keeping WebRTC for live sync.
+        sendSocketFallback();
+
         const dc = dataChannels[friendId];
         if (dc && dc.readyState === "open") {
-            dc.send(JSON.stringify({
-                type: "chat-message",
-                message: localMsg
-            }));
-        } else {
-            const socket = useAuthStore.getState().socket;
-            if (socket && socket.connected) {
-                // E2EE fallback message encryption
-                (async () => {
-                    try {
-                        if (!selectedUser.publicKeyJWK) {
-                            console.warn("Recipient has no E2EE public key. Sending plaintext fallback.");
-                            socket.emit("chat-fallback-message", {
-                                to: friendId,
-                                message: localMsg
-                            });
-                            return;
-                        }
-                        
-                        const myKeypair = await getLocalKeypair(myId);
-                        if (!myKeypair) {
-                            console.error("Local private key missing. Cannot encrypt.");
-                            return;
-                        }
-
-                        const remotePub = await importPublicKey(selectedUser.publicKeyJWK);
-                        const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
-                        const encrypted = await encryptPayload(localMsg, sharedKey);
-
-                        socket.emit("chat-fallback-message", {
-                            to: friendId,
-                            message: {
-                                isEncrypted: true,
-                                iv: encrypted.iv,
-                                ciphertext: encrypted.ciphertext,
-                                senderId: myId
-                            }
-                        });
-                    } catch (e) {
-                        console.error("Failed to encrypt fallback message:", e);
-                    }
-                })();
+            try {
+                dc.send(JSON.stringify({
+                    type: "chat-message",
+                    message: localMsg
+                }));
+            } catch (e) {
+                console.error("Error sending P2P chat message:", e);
             }
         }
     },
@@ -811,6 +824,10 @@ export const useChatStore = create((set, get) => ({
     subscribeToMessages: () => {
         const socket = useAuthStore.getState().socket;
         if (!socket) return;
+
+        socket.off("typing");
+        socket.off("stop typing");
+        socket.off("offline-messages-deliver");
 
         socket.on("typing", ({ senderId }) => {
             const { selectedUser } = get();

@@ -288,6 +288,50 @@ export const getGroupMessages = async (req, res) => {
     }
 };
 
+export const sendGroupMessage = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { text, tempId } = req.body;
+
+        if (!text || !text.trim()) {
+            return res.status(400).json({ message: "Message text is required" });
+        }
+
+        const group = await Group.findById(id);
+        if (!group) {
+            return res.status(404).json({ message: "Group not found" });
+        }
+        if (!group.members.some(m => m.toString() === req.user._id.toString())) {
+            return res.status(403).json({ message: "Not a member of this group" });
+        }
+
+        const saved = await GroupMessage.create({
+            groupId: id,
+            senderId: req.user._id,
+            text: text.trim(),
+            encrypted: false,
+        });
+
+        const message = {
+            _id: saved._id.toString(),
+            senderId: req.user._id.toString(),
+            text: saved.text,
+            createdAt: saved.createdAt.toISOString(),
+        };
+
+        io.to(`group_${id}`).emit("group-message", {
+            groupId: id,
+            message,
+            senderId: req.user._id.toString()
+        });
+
+        res.status(201).json({ message, tempId });
+    } catch (error) {
+        console.error("Error sending group message:", error.message);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+};
+
 export const approveRequest = async (req, res) => {
     try {
         const { groupId, requesterId } = req.body;

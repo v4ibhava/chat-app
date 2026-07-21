@@ -60,7 +60,7 @@ export const useGroupStore = create((set, get) => ({
         if (!myId) return;
 
         try {
-            const res = await axiosInstance.post("/groups", {
+            await axiosInstance.post("/groups", {
                 name: name.trim(),
                 desc: "Group Chat Room",
                 members: memberIds
@@ -170,18 +170,45 @@ export const useGroupStore = create((set, get) => ({
             }
         });
 
-        const socket = useAuthStore.getState().socket;
-        if (socket) {
-            socket.emit("group-message", {
-                groupId,
-                message: payload
+        try {
+            const res = await axiosInstance.post(`/groups/${groupId}/messages`, {
+                text: payload.text,
+                tempId
             });
+            const savedMessage = res.data?.message;
+            if (savedMessage) {
+                const messages = get().groupMessages[groupId] || [];
+                set({
+                    groupMessages: {
+                        ...get().groupMessages,
+                        [groupId]: messages.map(m =>
+                            m._id === tempId ? savedMessage : m
+                        )
+                    }
+                });
+            }
+        } catch (error) {
+            const messages = get().groupMessages[groupId] || [];
+            set({
+                groupMessages: {
+                    ...get().groupMessages,
+                    [groupId]: messages.filter(m => m._id !== tempId)
+                }
+            });
+            toast.error(error.response?.data?.message || "Failed to send group message");
         }
     },
 
     subscribeToGroupSignals: () => {
         const socket = useAuthStore.getState().socket;
         if (!socket) return;
+
+        socket.off("group-created");
+        socket.off("group-message");
+        socket.off("group-message-ack");
+        socket.off("group-deleted");
+        socket.off("group-member-update");
+        socket.off("group-metadata-updated");
 
         socket.on("group-created", ({ group }) => {
             const { groups } = get();
@@ -197,6 +224,7 @@ export const useGroupStore = create((set, get) => ({
             if (senderId === myId) return;
 
             const existing = get().groupMessages[groupId] || [];
+            if (existing.some(m => m._id === message._id)) return;
             set({
                 groupMessages: {
                     ...get().groupMessages,
