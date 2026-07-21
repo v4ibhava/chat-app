@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
-import { LogOut, MessageSquare, Settings, User, Menu, X, Search, Palette } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { LogOut, MessageSquare, Settings, User, Menu, X, Search } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import SearchBar from './SearchBar';
 import Notifications from './Notifications';
 import SearchModal from './SearchModal';
@@ -11,6 +11,10 @@ const Navbar = () => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // SearchBar only displays when user is on Profile or Settings page
+  const showSearchBarInHeader = ["/profile", "/settings"].includes(location.pathname);
 
   return (
     <>
@@ -26,7 +30,8 @@ const Navbar = () => {
               </Link>
             </div>
             
-            {authUser && (
+            {/* SearchBar conditionally shown ONLY when on /profile or /settings page */}
+            {authUser && showSearchBarInHeader && (
               <div className="hidden md:flex items-center gap-3 flex-1 max-w-md mx-4">
                 <div className="w-full">
                   <SearchBar />
@@ -37,19 +42,41 @@ const Navbar = () => {
             <div className='flex items-center gap-1 sm:gap-2'>
               {authUser ? (
                 <>
-                  <button 
-                    onClick={() => setShowSearch(true)}
-                    className="md:hidden w-10 h-10 rounded-full bg-[#1f1f26] hover:bg-[#2a2a34] flex items-center justify-center text-zinc-400 hover:text-white transition-all"
-                    title="Search"
-                  >
-                    <Search className="w-4 h-4" />
-                  </button>
+                  {showSearchBarInHeader && (
+                    <button 
+                      onClick={() => setShowSearch(true)}
+                      className="md:hidden w-10 h-10 rounded-full bg-[#1f1f26] hover:bg-[#2a2a34] flex items-center justify-center text-zinc-400 hover:text-white transition-all"
+                      title="Search Settings"
+                    >
+                      <Search className="w-4 h-4" />
+                    </button>
+                  )}
                   
                   <Notifications />
                   
-                  <div className="hidden sm:flex items-center gap-1 ml-1">
-                    <Link to={"/profile"} className="w-10 h-10 rounded-full bg-[#1f1f26] hover:bg-[#2a2a34] flex items-center justify-center text-zinc-400 hover:text-white transition-all" title="Profile">
+                  <div className="hidden sm:flex items-center gap-1.5 ml-1">
+                    <Link 
+                      to={"/profile"} 
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                        location.pathname === "/profile" 
+                          ? "bg-primary/20 text-primary border border-primary/40" 
+                          : "bg-[#1f1f26] hover:bg-[#2a2a34] text-zinc-400 hover:text-white"
+                      }`} 
+                      title="Profile"
+                    >
                       <User className="w-4 h-4" />
+                    </Link>
+
+                    <Link 
+                      to={"/settings"} 
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                        location.pathname === "/settings" 
+                          ? "bg-primary/20 text-primary border border-primary/40" 
+                          : "bg-[#1f1f26] hover:bg-[#2a2a34] text-zinc-400 hover:text-white"
+                      }`} 
+                      title="Settings"
+                    >
+                      <Settings className="w-4 h-4" />
                     </Link>
                   </div>
 
@@ -78,6 +105,13 @@ const Navbar = () => {
                 onClick={() => setShowMobileMenu(false)}
               >
                 <User className="w-5 h-5" /> Profile
+              </Link>
+              <Link 
+                to={"/settings"} 
+                className="flex items-center gap-3 p-3 rounded-2xl hover:bg-[#1a1a20] text-zinc-300 hover:text-white transition-all"
+                onClick={() => setShowMobileMenu(false)}
+              >
+                <Settings className="w-5 h-5" /> Settings
               </Link>
             </div>
           </div>

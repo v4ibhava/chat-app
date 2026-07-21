@@ -35,6 +35,15 @@ export const createGroup = async (req, res) => {
 
         await group.save();
         const populated = await Group.findById(group._id).populate("members", "fullName username profilePic publicKeyJWK");
+
+        // Notify all members via socket so their UI updates immediately
+        for (const member of populated.members) {
+            const memberSocketId = getReceiverSocketId(member._id.toString());
+            if (memberSocketId) {
+                io.to(memberSocketId).emit("group-created", { group: populated });
+            }
+        }
+
         res.status(201).json(populated);
     } catch (error) {
         console.error("Error creating group:", error.message);

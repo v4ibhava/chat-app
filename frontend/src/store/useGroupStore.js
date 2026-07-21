@@ -183,6 +183,15 @@ export const useGroupStore = create((set, get) => ({
         const socket = useAuthStore.getState().socket;
         if (!socket) return;
 
+        socket.on("group-created", ({ group }) => {
+            const { groups } = get();
+            if (!groups.some(g => g._id === group._id)) {
+                set({ groups: [group, ...groups] });
+                socket.emit("join-group-rooms", [group._id]);
+                toast.success(`Added to group "${group.name}"!`);
+            }
+        });
+
         socket.on("group-message", ({ groupId, message, senderId }) => {
             const myId = useAuthStore.getState().authUser?._id;
             if (senderId === myId) return;
@@ -232,8 +241,8 @@ export const useGroupStore = create((set, get) => ({
     unsubscribeFromGroupSignals: () => {
         const socket = useAuthStore.getState().socket;
         if (socket) {
+            socket.off("group-created");
             socket.off("group-message");
-            socket.off("group-message-ack");
             socket.off("group-deleted");
             socket.off("group-member-update");
             socket.off("group-metadata-updated");
