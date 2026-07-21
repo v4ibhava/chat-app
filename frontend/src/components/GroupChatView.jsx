@@ -34,11 +34,11 @@ const GroupChatView = () => {
     };
 
     return (
-        <div className="flex-1 flex flex-col h-full overflow-hidden bg-base-100 relative min-h-0">
+        <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#121215] relative min-h-0">
             {/* Header */}
-            <div className="shrink-0 border-b border-base-300 p-3 sm:p-4 flex items-center justify-between">
+            <div className="shrink-0 border-b border-[#1e1e24] p-4 flex items-center justify-between bg-[#121215]">
                 <div className="flex items-center gap-3">
-                    <button onClick={() => setSelectedGroup(null)} className="md:hidden btn btn-sm btn-ghost btn-circle">
+                    <button onClick={() => setSelectedGroup(null)} className="md:hidden btn btn-sm btn-ghost btn-circle text-zinc-400 hover:text-white">
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div
@@ -50,29 +50,29 @@ const GroupChatView = () => {
                             <img
                                 src={selectedGroup.groupPic}
                                 alt={selectedGroup.name}
-                                className="w-10 h-10 rounded-full object-cover ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all"
+                                className="w-10 h-10 rounded-full object-cover shrink-0"
                             />
                         ) : (
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-sm font-bold text-primary ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600/30 to-indigo-600/30 flex items-center justify-center text-sm font-bold text-blue-400 shrink-0">
                                 {selectedGroup.name.substring(0, 2).toUpperCase()}
                             </div>
                         )}
                         <div>
-                            <h3 className="font-bold text-sm sm:text-base group-hover:text-primary transition-colors">
+                            <h3 className="font-bold text-base text-white group-hover:text-primary transition-colors">
                                 {selectedGroup.name}
                             </h3>
-                            <p className="text-xs text-zinc-500">
+                            <p className="text-xs text-zinc-400">
                                 {selectedGroup.members?.length || 0} members
                             </p>
                         </div>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={handleCopyInvite} className="btn btn-sm btn-outline flex items-center gap-1.5" title="Copy Invite Link">
-                        <Copy className="w-4 h-4" />
-                        <span className="hidden sm:inline">Invite</span>
+                    <button onClick={handleCopyInvite} className="btn btn-sm bg-[#1f1f26] hover:bg-[#2a2a34] text-zinc-300 border-none rounded-full flex items-center gap-1.5" title="Copy Invite Link">
+                        <Copy className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline text-xs">Invite</span>
                     </button>
-                    <button onClick={() => setGroupInfoOpen(true)} className="btn btn-sm btn-ghost btn-circle" title="Group Info">
+                    <button onClick={() => setGroupInfoOpen(true)} className="w-10 h-10 rounded-full bg-[#1f1f26] hover:bg-[#2a2a34] flex items-center justify-center text-zinc-300 hover:text-white transition-all shadow-sm" title="Group Info">
                         <Info className="w-4 h-4" />
                     </button>
                 </div>
@@ -87,11 +87,11 @@ const GroupChatView = () => {
                     </div>
                     <div className="flex flex-wrap gap-2">
                         {selectedGroup.pendingRequests.map(req => (
-                            <div key={req._id} className="flex items-center gap-2 bg-base-200 border border-base-300 rounded-full pl-3 pr-1 py-0.5 text-xs">
+                            <div key={req._id} className="flex items-center gap-2 bg-[#1c1c22] border border-[#2a2a34] rounded-full pl-3 pr-1 py-0.5 text-xs text-zinc-200">
                                 <span>{req.fullName}</span>
                                 <button
                                     onClick={() => approveRequest(selectedGroup._id, req._id)}
-                                    className="btn btn-xs btn-primary rounded-full px-2"
+                                    className="btn btn-xs bg-[#2563eb] hover:bg-blue-600 border-none text-white rounded-full px-2"
                                 >
                                     Approve
                                 </button>
@@ -108,13 +108,17 @@ const GroupChatView = () => {
                     const sender = selectedGroup.members?.find(m => m._id === message.senderId);
                     return (
                         <div key={message._id} className={`chat ${isMe ? "chat-end" : "chat-start"}`}>
-                            <div className="chat-header text-xs opacity-60 mb-0.5">
+                            <div className="chat-header text-xs text-zinc-400 mb-1">
                                 {sender ? sender.fullName : "Unknown User"}
                             </div>
-                            <div className={`chat-bubble text-sm sm:text-base ${isMe ? "bg-primary text-primary-content" : "bg-base-200 text-base-content"}`}>
+                            <div className={`chat-bubble text-sm sm:text-base px-4 py-2.5 rounded-2xl shadow-sm ${
+                                isMe 
+                                    ? "bg-[#2563eb] text-white" 
+                                    : "bg-[#24242b] text-zinc-200"
+                            }`}>
                                 {message.text}
                             </div>
-                            <div className="chat-footer opacity-50 text-[10px] mt-0.5">
+                            <div className="chat-footer text-[10px] text-zinc-500 mt-1">
                                 {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                             </div>
                         </div>
@@ -129,15 +133,15 @@ const GroupChatView = () => {
             </div>
 
             {/* Input Form */}
-            <form onSubmit={handleSend} className="shrink-0 p-3 sm:p-4 border-t border-base-300 flex gap-2">
+            <form onSubmit={handleSend} className="shrink-0 p-4 border-t border-[#1e1e24] flex gap-3 bg-[#121215]">
                 <input
                     type="text"
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder="Type a group message..."
-                    className="input input-bordered flex-1"
+                    className="flex-1 bg-[#1a1a20] text-white text-sm placeholder-zinc-500 rounded-full px-5 py-3 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
                 />
-                <button type="submit" className="btn btn-primary btn-circle">
+                <button type="submit" className="p-3.5 rounded-full bg-[#2563eb] hover:bg-blue-600 text-white transition-all shadow-md shrink-0 disabled:opacity-40" disabled={!text.trim()}>
                     <Send className="w-4 h-4" />
                 </button>
             </form>

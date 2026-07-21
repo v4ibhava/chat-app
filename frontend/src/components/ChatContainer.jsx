@@ -67,7 +67,7 @@ const ChatContainer = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden relative min-h-0">
+    <div className="flex-1 flex flex-col h-full overflow-hidden relative min-h-0 bg-[#121215]">
       <ChatHeader />
       <div 
         ref={messagesContainerRef}
@@ -94,20 +94,20 @@ const ChatContainer = () => {
                 </div>
               )}
               {!message.isSystem && (
-                <div className='chat-header mb-1'>
-                  <time className='text-xs opacity-50 ml-1'>
+                <div className='chat-header mb-1 text-zinc-500 text-[11px]'>
+                  <time className='ml-1'>
                     {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
                   </time>
                 </div>
               )}
               {message.isSystem ? (
-                <div className="px-4 py-1.5 rounded-full bg-red-500/10 text-red-500 text-xs font-medium border border-red-500/20">
+                <div className="px-4 py-1.5 rounded-full bg-red-500/10 text-red-400 text-xs font-medium border border-red-500/20">
                   ⚠️ {message.text}
                 </div>
               ) : message.image ? (
-                /* Premium image message layout (no blocky solid bubble) */
+                /* Premium image message layout */
                 <div className="flex flex-col items-start gap-1 relative">
-                  <div className="relative rounded-2xl overflow-hidden shadow-md border border-base-300/50 hover:shadow-lg transition-shadow group/img-container max-w-[280px] sm:max-w-[360px]">
+                  <div className="relative rounded-2xl overflow-hidden shadow-md border border-[#2e2e38] group/img-container max-w-[280px] sm:max-w-[360px]">
                     <img 
                       src={message.image} 
                       alt="Attachment" 
@@ -117,7 +117,7 @@ const ChatContainer = () => {
                       <a 
                         href={message.image}
                         download={message.fileName}
-                        className="absolute bottom-3 right-3 p-2.5 rounded-full bg-black/60 hover:bg-black/80 text-white transition-all shadow-md flex items-center justify-center cursor-pointer"
+                        className="absolute bottom-3 right-3 p-2.5 rounded-full bg-black/70 hover:bg-black/90 text-white transition-all shadow-md flex items-center justify-center cursor-pointer"
                         title={`Download ${message.fileName}`}
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -128,16 +128,49 @@ const ChatContainer = () => {
                     )}
                   </div>
                   
-                  <div className="flex items-center gap-2 max-w-full">
-                    <div className={`px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap ${
-                      isMe 
-                        ? "bg-primary text-primary-content rounded-tr-none" 
-                        : "bg-base-200 text-base-content rounded-tl-none"
-                    }`}>
-                      {message.text}
+                  {message.text && (
+                    <div className="flex items-center gap-2 max-w-full">
+                      <div className={`px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${
+                        isMe 
+                          ? "bg-[#2563eb] text-white shadow-md" 
+                          : "bg-[#24242b] text-zinc-200"
+                      }`}>
+                        {message.text}
+                      </div>
                     </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 max-w-[85%] sm:max-w-[70%]">
+                  {isMe && (
                     <button 
-                      onClick={() => setActiveMessageOptions(message._id)}
+                      onClick={() => setActiveMessageOptions(activeMessageOptions === message._id ? null : message._id)}
+                      className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 text-zinc-500 hover:text-white rounded-full"
+                      title="Options"
+                    >
+                      <MoreVertical size={14} />
+                    </button>
+                  )}
+                  
+                  <div className={`chat-bubble text-sm sm:text-base px-4 py-2.5 rounded-2xl shadow-sm ${
+                    isMe 
+                      ? "bg-[#2563eb] text-white" 
+                      : "bg-[#24242b] text-zinc-200"
+                  }`}>
+                    {message.text}
+                  </div>
+
+                  {!isMe && (
+                    <button 
+                      onClick={() => setActiveMessageOptions(activeMessageOptions === message._id ? null : message._id)}
+                      className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 text-zinc-500 hover:text-white rounded-full"
+                      title="Options"
+                    >
+                      <MoreVertical size={14} />
+                    </button>
+                  )}
+                </div>
+              )}
                       className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 rounded-full hover:bg-base-300 shrink-0"
                       title="Options"
                     >
