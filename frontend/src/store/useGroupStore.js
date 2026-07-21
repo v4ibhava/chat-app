@@ -4,6 +4,19 @@ import { axiosInstance } from "../lib/axios.js";
 import { useAuthStore } from "./useAuthStore.js";
 import { playMessageSound } from "../lib/sounds.js";
 
+const emitWithAck = (socket, event, payload, timeout = 7000) => new Promise((resolve) => {
+    if (!socket?.connected) {
+        resolve(null);
+        return;
+    }
+
+    const timer = setTimeout(() => resolve(null), timeout);
+    socket.emit(event, payload, (response) => {
+        clearTimeout(timer);
+        resolve(response || null);
+    });
+});
+
 export const useGroupStore = create((set, get) => ({
     groups: [],
     selectedGroup: null,
@@ -33,6 +46,15 @@ export const useGroupStore = create((set, get) => ({
             if (selectedGroup) {
                 const updated = groupsList.find(g => g._id === selectedGroup._id);
                 if (updated) set({ selectedGroup: updated });
+            } else {
+                const savedId = sessionStorage.getItem("zync_selected_group");
+                if (savedId) {
+                    const saved = groupsList.find(g => g._id === savedId);
+                    if (saved) {
+                        set({ selectedGroup: saved });
+                        get().fetchGroupMessages(saved._id);
+                    }
+                }
             }
 
             const socket = useAuthStore.getState().socket;
@@ -58,7 +80,19 @@ export const useGroupStore = create((set, get) => ({
                 }
             });
         } catch (error) {
-            console.error("Failed to fetch group messages:", error);
+            // Older server deployments can still return history over the socket.
+            const socket = useAuthStore.getState().socket;
+            const response = await emitWithAck(socket, "get-group-messages", { groupId });
+            if (response?.ok && Array.isArray(response.messages)) {
+                set({
+                    groupMessages: {
+                        ...get().groupMessages,
+                        [groupId]: response.messages,
+                    },
+                });
+            } else {
+                console.error("Failed to fetch group messages:", error);
+            }
         } finally {
             set({ isMessagesLoading: false });
         }
@@ -102,7 +136,18 @@ export const useGroupStore = create((set, get) => ({
             get().applyGroupUpdate(res.data);
             toast.success("Group name updated!");
         } catch (error) {
-            toast.error(error.response?.data?.message || "Failed to update group name");
+            const socket = useAuthStore.getState().socket;
+            const response = await emitWithAck(socket, "update-group", {
+                groupId,
+                name: newName.trim(),
+            });
+            if (response?.ok && response.group) {
+                get().applyGroupUpdate(response.group);
+                toast.success("Group name updated!");
+                return true;
+            }
+            toast.error(response?.message || error.response?.data?.message || "Failed to update group name");
+            return false;
         }
     },
 
@@ -332,6 +377,12 @@ export const useGroupStore = create((set, get) => ({
     },
 
     setSelectedGroup: (selectedGroup) => {
+        if (selectedGroup?._id) {
+            sessionStorage.setItem("zync_selected_group", selectedGroup._id);
+            sessionStorage.removeItem("zync_selected_user");
+        } else {
+            sessionStorage.removeItem("zync_selected_group");
+        }
         set({ selectedGroup, isGroupInfoOpen: false });
         if (selectedGroup?._id) {
             get().fetchGroupMessages(selectedGroup._id);

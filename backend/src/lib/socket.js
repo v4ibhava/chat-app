@@ -129,11 +129,23 @@ io.on("connection", (socket) => {
         if (!userId) return;
         try {
             const user = await User.findById(userId);
-            if (user && user.friends?.some(f => f.toString() === to?.toString())) {
+            const isFriend = user?.friends?.some(f => f.toString() === to?.toString());
+            const group = signal?.groupId ? await Group.findById(signal.groupId) : null;
+            const isSameGroup = group &&
+                group.members.some(member => member.toString() === userId.toString()) &&
+                group.members.some(member => member.toString() === to?.toString());
+
+            if (user && (isFriend || isSameGroup)) {
                 const receiverSocketId = getReceiverSocketId(to);
                 if (receiverSocketId) {
                     io.to(receiverSocketId).emit("webrtc-signal", {
                         from: userId,
+                        fromUser: {
+                            _id: user._id.toString(),
+                            fullName: user.fullName,
+                            username: user.username,
+                            profilePic: user.profilePic,
+                        },
                         signal
                     });
                 } else if (signal.type === "call-offer") {
@@ -154,7 +166,7 @@ io.on("connection", (socket) => {
                     });
                 }
             } else {
-                console.log(`Security Block: User ${userId} tried to signal non-friend ${to}`);
+                console.log(`Security Block: User ${userId} tried to signal an unauthorized recipient ${to}`);
             }
         } catch (err) {
             console.error("Error in webrtc-signal check:", err);
@@ -270,6 +282,72 @@ io.on("connection", (socket) => {
             }
         } catch (err) {
             console.error("Error broadcasting group message:", err);
+        }
+    });
+
+    socket.on("get-group-messages", async ({ groupId }, callback) => {
+        if (!userId || !groupId || typeof callback !== "function") return;
+        try {
+            const group = await Group.findById(groupId);
+            if (!group || !group.members.some(member => member.toString() === userId.toString())) {
+                callback({ ok: false, message: "Not a member of this group" });
+                return;
+            }
+
+            const messages = await GroupMessage.find({ groupId })
+                .populate("senderId", "fullName username profilePic")
+                .sort({ createdAt: 1 })
+                .lean();
+
+            callback({
+                ok: true,
+                messages: messages.map(message => ({
+                    _id: message._id.toString(),
+                    senderId: message.senderId._id.toString(),
+                    text: message.text,
+                    createdAt: message.createdAt.toISOString(),
+                    sender: {
+                        fullName: message.senderId.fullName,
+                        username: message.senderId.username,
+                    },
+                })),
+            });
+        } catch (err) {
+            console.error("Error fetching group messages over socket:", err);
+            callback({ ok: false, message: "Failed to load group messages" });
+        }
+    });
+
+    socket.on("update-group", async ({ groupId, name }, callback) => {
+        if (!userId || !groupId || typeof callback !== "function") return;
+        try {
+            const nextName = typeof name === "string" ? name.trim() : "";
+            if (!nextName) {
+                callback({ ok: false, message: "Group name is required" });
+                return;
+            }
+
+            const group = await Group.findById(groupId);
+            if (!group) {
+                callback({ ok: false, message: "Group not found" });
+                return;
+            }
+            if (!group.admins.some(admin => admin.toString() === userId.toString())) {
+                callback({ ok: false, message: "Only admins can update group settings" });
+                return;
+            }
+
+            group.name = nextName;
+            await group.save();
+            const populated = await Group.findById(groupId)
+                .populate("members", "fullName username profilePic publicKeyJWK")
+                .populate("pendingRequests", "fullName username profilePic publicKeyJWK");
+
+            io.to(`group_${groupId}`).emit("group-metadata-updated", { groupId, group: populated });
+            callback({ ok: true, group: populated });
+        } catch (err) {
+            console.error("Error updating group over socket:", err);
+            callback({ ok: false, message: "Failed to update group" });
         }
     });
 

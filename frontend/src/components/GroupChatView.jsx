@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useGroupStore } from "../store/useGroupStore";
 import { useAuthStore } from "../store/useAuthStore";
-import { ArrowLeft, Send, Copy, ShieldAlert, Info, Loader2, Pencil, Check, X } from "lucide-react";
+import { useChatStore } from "../store/useChatStore";
+import { ArrowLeft, Send, Copy, ShieldAlert, Info, Loader2, Pencil, Check, X, Phone, Video } from "lucide-react";
 import { toast } from "react-hot-toast";
 import GroupInfoPanel from "./GroupInfoPanel";
 
 const GroupChatView = () => {
     const { selectedGroup, setSelectedGroup, groupMessages, sendGroupMessage, approveRequest, setGroupInfoOpen, updateGroupName, isMessagesLoading } = useGroupStore();
     const { authUser } = useAuthStore();
+    const { startGroupCall } = useChatStore();
     const [text, setText] = useState("");
     const [isEditingName, setIsEditingName] = useState(false);
     const [editName, setEditName] = useState("");
@@ -123,6 +125,12 @@ const GroupChatView = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                    <button onClick={() => startGroupCall(selectedGroup, "audio")} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#1f1f26] hover:bg-[#2a2a34] flex items-center justify-center text-zinc-300 hover:text-emerald-400 transition-all" title="Group Audio Call">
+                        <Phone className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => startGroupCall(selectedGroup, "video")} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#1f1f26] hover:bg-[#2a2a34] flex items-center justify-center text-zinc-300 hover:text-blue-400 transition-all" title="Group Video Call">
+                        <Video className="w-3.5 h-3.5" />
+                    </button>
                     <button onClick={handleCopyInvite} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#1f1f26] hover:bg-[#2a2a34] flex items-center justify-center text-zinc-300 hover:text-white transition-all" title="Copy Invite Link">
                         <Copy className="w-3.5 h-3.5" />
                     </button>

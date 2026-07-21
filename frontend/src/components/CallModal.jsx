@@ -22,7 +22,10 @@ const CallModal = () => {
         toggleCamera,
         isScreenSharing,
         screenStream,
-        toggleScreenShare
+        toggleScreenShare,
+        isGroupCall,
+        groupCallMembers,
+        groupCallRemoteStreams,
     } = useChatStore();
 
     const localVideoRef = useRef(null);
@@ -115,7 +118,9 @@ const CallModal = () => {
             {callState === "ringing" && (
                 <div className="flex flex-col items-center justify-between w-full max-w-md h-[80vh] sm:h-[70vh] p-8 animate-fade-in text-white">
                     <div className="text-center mt-4">
-                        <span className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Outgoing Call</span>
+                        <span className="text-xs uppercase tracking-widest text-zinc-500 font-bold">
+                            {isGroupCall ? "Outgoing Group Call" : "Outgoing Call"}
+                        </span>
                     </div>
 
                     {/* Concentric ripples */}
@@ -125,18 +130,28 @@ const CallModal = () => {
                         <div className="ripple-ring" style={{ '--ripple-color': 'rgba(59, 130, 246, 0.1)', 'animation-delay': '1.4s' }}></div>
                         
                         <div className="relative z-10 p-1 bg-zinc-900 rounded-full border border-zinc-800 shadow-2xl">
-                            <UserAvatar 
-                                src={activeCallUser.profilePic} 
-                                alt={activeCallUser.fullName} 
-                                size="2xl"
-                                showStatus={false}
-                            />
+                            {isGroupCall ? (
+                                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-600/30 to-indigo-600/30 flex items-center justify-center text-blue-400 font-bold text-xl">
+                                    {(activeCallUser?.fullName || "G").substring(0, 2).toUpperCase()}
+                                </div>
+                            ) : (
+                                <UserAvatar 
+                                    src={activeCallUser.profilePic} 
+                                    alt={activeCallUser.fullName} 
+                                    size="2xl"
+                                    showStatus={false}
+                                />
+                            )}
                         </div>
                     </div>
 
                     <div className="text-center mb-6">
-                        <h3 className="text-2xl font-bold tracking-tight mb-1">{activeCallUser.fullName}</h3>
-                        <p className="text-sm text-zinc-400 font-medium animate-pulse">Calling with {callType}...</p>
+                        <h3 className="text-2xl font-bold tracking-tight mb-1">
+                            {isGroupCall ? activeCallUser?.fullName || "Group Call" : activeCallUser.fullName}
+                        </h3>
+                        <p className="text-sm text-zinc-400 font-medium animate-pulse">
+                            {isGroupCall ? `Calling ${groupCallMembers.length} members with ${callType}...` : `Calling with ${callType}...`}
+                        </p>
                     </div>
 
                     <button 
@@ -153,7 +168,9 @@ const CallModal = () => {
             {callState === "incoming" && (
                 <div className="flex flex-col items-center justify-between w-full max-w-md h-[85vh] sm:h-[75vh] p-8 animate-fade-in text-white">
                     <div className="text-center mt-4">
-                        <span className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Incoming {callType} Call</span>
+                        <span className="text-xs uppercase tracking-widest text-zinc-500 font-bold">
+                            {isGroupCall ? `Incoming Group ${callType} Call` : `Incoming ${callType} Call`}
+                        </span>
                     </div>
 
                     {/* Concentric ripples */}
@@ -173,8 +190,12 @@ const CallModal = () => {
                     </div>
 
                     <div className="text-center mb-6">
-                        <h3 className="text-2xl font-bold tracking-tight mb-1">{activeCallUser.fullName}</h3>
-                        <p className="text-sm text-zinc-400 font-medium animate-pulse">Incoming call...</p>
+                        <h3 className="text-2xl font-bold tracking-tight mb-1">
+                            {isGroupCall ? "Group Call" : activeCallUser.fullName}
+                        </h3>
+                        <p className="text-sm text-zinc-400 font-medium animate-pulse">
+                            {isGroupCall ? `From ${activeCallUser.fullName}` : "Incoming call..."}
+                        </p>
                     </div>
 
                     <div className="flex flex-col items-center gap-6 w-full mb-4">
@@ -187,13 +208,15 @@ const CallModal = () => {
                                 <PhoneOff className="w-6 h-6" />
                             </button>
                             
-                            <button 
-                                onClick={rejectWithBusyMessage} 
-                                className="btn btn-circle btn-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-amber-500 shadow-lg transform active:scale-95 transition-all duration-200"
-                                title="Decline & Reply: I'm Busy"
-                            >
-                                <MessageSquare className="w-6 h-6" />
-                            </button>
+                            {!isGroupCall && (
+                                <button 
+                                    onClick={rejectWithBusyMessage} 
+                                    className="btn btn-circle btn-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-amber-500 shadow-lg transform active:scale-95 transition-all duration-200"
+                                    title="Decline & Reply: I'm Busy"
+                                >
+                                    <MessageSquare className="w-6 h-6" />
+                                </button>
+                            )}
 
                             <button 
                                 onClick={acceptCall} 
@@ -203,20 +226,80 @@ const CallModal = () => {
                                 <Phone className="w-6 h-6" />
                             </button>
                         </div>
-                        <span className="text-[10px] text-zinc-500 text-center select-none max-w-xs">
-                          Tap message icon to decline & reply: <span className="italic text-zinc-400">"I'm busy right now, I'll call you later."</span>
-                        </span>
+                        {!isGroupCall && (
+                            <span className="text-[10px] text-zinc-500 text-center select-none max-w-xs">
+                              Tap message icon to decline & reply: <span className="italic text-zinc-400">"I'm busy right now, I'll call you later."</span>
+                            </span>
+                        )}
                     </div>
                 </div>
             )}
 
             {/* Connected Call Screen */}
             {callState === "connected" && (
-                <div className="relative w-full h-full sm:max-w-4xl sm:h-[80vh] bg-zinc-950 sm:rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-zinc-800/60">
+                <div className="relative w-full h-full sm:max-w-5xl sm:h-[85vh] bg-zinc-950 sm:rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-zinc-800/60">
                     
                     {/* Media Streaming Workspace */}
                     <div className="flex-1 relative bg-black w-full h-full overflow-hidden">
-                        {callType === "video" ? (
+                        {isGroupCall && callType === "video" ? (
+                            <div className="absolute inset-0 p-2 grid grid-cols-2 sm:grid-cols-3 gap-2 auto-rows-min">
+                                {/* Remote participants */}
+                                {groupCallRemoteStreams.map(({ memberId, stream, user }) => (
+                                    <div key={memberId} className="relative bg-zinc-900 rounded-xl overflow-hidden aspect-video">
+                                        <video
+                                            autoPlay
+                                            playsInline
+                                            ref={(el) => { if (el && stream) el.srcObject = stream; }}
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <span className="absolute bottom-2 left-2 bg-black/60 px-2 py-0.5 rounded text-xs text-white">
+                                            {user?.fullName || "Member"}
+                                        </span>
+                                    </div>
+                                ))}
+                                {/* Local preview */}
+                                <div className="relative bg-zinc-900 rounded-xl overflow-hidden aspect-video">
+                                    <video
+                                        ref={localVideoRef}
+                                        autoPlay
+                                        playsInline
+                                        muted
+                                        className="w-full h-full object-cover"
+                                        style={{ transform: isScreenSharing ? "none" : "scaleX(-1)" }}
+                                    />
+                                    {isCameraOff && !isScreenSharing && (
+                                        <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center text-zinc-600">
+                                            <VideoOff className="w-5 h-5" />
+                                        </div>
+                                    )}
+                                    <span className="absolute bottom-2 left-2 bg-black/60 px-2 py-0.5 rounded text-xs text-white">
+                                        You
+                                    </span>
+                                </div>
+                            </div>
+                        ) : isGroupCall && callType === "audio" ? (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 text-white bg-zinc-950">
+                                <div className="flex flex-wrap justify-center gap-4 px-4">
+                                    {/* Self */}
+                                    <div className="flex flex-col items-center gap-2">
+                                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600/30 to-indigo-600/30 flex items-center justify-center text-blue-400 font-bold text-lg">
+                                            You
+                                        </div>
+                                        <span className="text-xs text-zinc-400">You</span>
+                                    </div>
+                                    {groupCallMembers.map(member => (
+                                        <div key={member._id} className="flex flex-col items-center gap-2">
+                                            <UserAvatar src={member.profilePic} alt={member.fullName} size="md" showStatus={false} />
+                                            <span className="text-xs text-zinc-400 truncate max-w-[72px]">{member.fullName}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-zinc-400 text-sm">Group audio call ({groupCallMembers.length + 1} participants)</p>
+                                {groupCallRemoteStreams.map(({ memberId, stream }) => (
+                                    <audio key={memberId} autoPlay playsInline className="hidden" ref={(el) => { if (el && stream) el.srcObject = stream; }} />
+                                ))}
+                            </div>
+                        ) : callType === "video" ? (
                             <>
                                 {/* Remote Participant Video */}
                                 {remoteStream ? (
@@ -250,7 +333,7 @@ const CallModal = () => {
                                     </div>
                                 )}
 
-                                {/* Local PiP Preview (z-40 so it displays above the remote feed) */}
+                                {/* Local PiP Preview */}
                                 <div className="absolute bottom-4 right-4 w-24 aspect-[3/4] sm:w-48 sm:aspect-video bg-zinc-900 rounded-xl overflow-hidden border-2 border-zinc-700/80 shadow-2xl z-40">
                                     <video 
                                         ref={localVideoRef} 
@@ -268,7 +351,7 @@ const CallModal = () => {
                                 </div>
                             </>
                         ) : (
-                            /* Audio Call UI */
+                            /* 1:1 Audio Call UI */
                             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-center text-white bg-zinc-950">
                                 <div className="relative flex items-center justify-center w-36 h-36">
                                     <div className="ripple-ring" style={{ '--ripple-color': 'rgba(139, 92, 246, 0.3)' }}></div>
@@ -285,7 +368,6 @@ const CallModal = () => {
                                 <h3 className="text-white text-2xl font-bold mt-6">{activeCallUser.fullName}</h3>
                                 <p className="text-zinc-400 text-sm">Audio call in progress</p>
 
-                                {/* Hidden audio element to play remote voice stream */}
                                 {remoteStream && (
                                     <audio 
                                         ref={remoteVideoRef} 
@@ -297,11 +379,11 @@ const CallModal = () => {
                             </div>
                         )}
 
-                        {/* Top Info Bar (Name and Timer) */}
+                        {/* Top Info Bar */}
                         <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none z-30">
                             <div className="bg-black/60 backdrop-blur-md border border-zinc-800/80 px-4 py-2 rounded-full text-white text-sm font-semibold pointer-events-auto flex items-center gap-2">
                                 <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
-                                {activeCallUser.fullName}
+                                {isGroupCall ? `${groupCallMembers.length + 1} participants` : activeCallUser.fullName}
                             </div>
                             <div className="bg-black/60 backdrop-blur-md border border-zinc-800/80 px-4 py-2 rounded-full text-white text-sm font-semibold pointer-events-auto font-mono">
                                 {formatDuration(duration)}
