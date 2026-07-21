@@ -35,10 +35,13 @@ const HomePage = () => {
     }
   }, [userIdFromUrl, users, setSelectedUser, setSelectedGroup]);
 
-  const filteredGroups = groups.filter(g =>
-    g.name.toLowerCase().includes(groupSearchTerm.toLowerCase()) ||
-    (g.desc && g.desc.toLowerCase().includes(groupSearchTerm.toLowerCase()))
-  );
+  const filteredGroups = groups.filter(g => {
+    if (!g) return false;
+    const term = (groupSearchTerm || "").toLowerCase();
+    const name = (g.name || "").toLowerCase();
+    const desc = (g.desc || "").toLowerCase();
+    return name.includes(term) || desc.includes(term);
+  });
 
   return (
     <div className="fixed inset-x-0 top-14 bottom-0 bg-[#0a0a0c] overflow-hidden p-3 sm:p-4">

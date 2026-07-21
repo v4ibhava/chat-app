@@ -16,10 +16,13 @@ const Sidebar = () => {
 
   if (isUsersLoading) return <SidebarSkeleton selectedUser={selectedUser} />;
 
-  const filteredUsers = users.filter(user =>
-    user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.username && user.username.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredUsers = users.filter(user => {
+    if (!user) return false;
+    const term = (searchTerm || "").toLowerCase();
+    const fullName = (user.fullName || "").toLowerCase();
+    const username = (user.username || "").toLowerCase();
+    return fullName.includes(term) || username.includes(term);
+  });
 
   return (
     <div className="flex flex-col h-full w-full bg-[#121215] border-r border-[#1e1e24]">
