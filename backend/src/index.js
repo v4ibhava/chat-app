@@ -49,7 +49,21 @@ app.use(
 // Security middleware
 app.use(helmet());
 app.use(mongoSanitize());
-app.use(xss());
+
+// Custom wrapper for xss-clean to prevent regex stack overflow on base64 image strings
+const xssMiddleware = xss();
+app.use((req, res, next) => {
+  if (req.body && req.body.profilePic) {
+    const tempPic = req.body.profilePic;
+    delete req.body.profilePic;
+    xssMiddleware(req, res, () => {
+      req.body.profilePic = tempPic;
+      next();
+    });
+  } else {
+    xssMiddleware(req, res, next);
+  }
+});
 
 // Routes
 app.use("/api/auth", authRoutes);

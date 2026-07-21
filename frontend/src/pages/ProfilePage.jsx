@@ -39,7 +39,7 @@ const ProfilePage = () => {
 
     const toastId = toast.loading("Saving profile picture...");
     try {
-      const compressedBase64 = await compressImage(file, 800, 800, 0.85);
+      const compressedBase64 = await compressImage(file, 400, 400, 0.75);
       const success = await updateProfile({ profilePic: compressedBase64 });
       if (success) {
         setSelectedImg(compressedBase64);

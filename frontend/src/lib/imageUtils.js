@@ -15,7 +15,7 @@ export const compressImage = (fileOrDataUrl, maxWidth = 800, maxHeight = 800, qu
                 let width = img.width;
                 let height = img.height;
 
-                if (width <= maxWidth && height <= maxHeight && src.length < 300000) {
+                if (width <= maxWidth && height <= maxHeight && src.length < 50000) {
                     // Already small enough
                     return resolve(src);
                 }
