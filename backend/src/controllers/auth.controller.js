@@ -124,13 +124,17 @@ export const logout = (req, res) => {
 
 export const updateProfile = async (req, res) => {
     try {
-        const { profilePic, fullName, email, username, showLastSeen } = req.body;
+        const { profilePic, fullName, email, username, showLastSeen, notificationsEnabled } = req.body;
         const userId = req.user._id;
         
         const updates = {};
 
         if (showLastSeen !== undefined) {
             updates.showLastSeen = !!showLastSeen;
+        }
+
+        if (notificationsEnabled !== undefined) {
+            updates.notificationsEnabled = !!notificationsEnabled;
         }
         
         if (profilePic) {

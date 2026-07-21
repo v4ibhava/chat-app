@@ -3,6 +3,7 @@ import { toast } from "react-hot-toast";
 import { axiosInstance } from "../lib/axios.js";
 import { useAuthStore } from "./useAuthStore.js";
 import { playMessageSound } from "../lib/sounds.js";
+import { showNewMessageNotification } from "../lib/notifications.jsx";
 import { getLocalMessages, saveLocalMessage, deleteLocalMessage } from "../lib/db.js";
 import { startDialTone, startRingTone, stopTone } from "../lib/ringtone.js";
 import { getLocalKeypair, importPublicKey, deriveSharedKey, encryptPayload, decryptPayload } from "../lib/crypto.js";
@@ -414,6 +415,15 @@ export const useChatStore = create((set, get) => ({
             const msg = data.message;
             await saveLocalMessage(msg);
             playMessageSound();
+            if (!selectedUser || selectedUser._id !== friendId) {
+                const sender = get().users.find(u => u._id === friendId);
+                showNewMessageNotification(
+                    sender?.fullName || "Unknown User",
+                    friendId,
+                    msg?.text || "",
+                    sender?.profilePic
+                );
+            }
             if (selectedUser && selectedUser._id === friendId) {
                 const currentMsgs = get().messages;
                 if (!currentMsgs.some(m => m._id === msg._id)) {

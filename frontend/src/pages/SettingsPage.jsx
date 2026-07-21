@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
-  Activity, AlertCircle, ArrowLeft, Calendar, Check, Clock,
+  Activity, AlertCircle, ArrowLeft, Bell, Calendar, Check, Clock,
   Eye, Moon, Monitor, Palette, Search, Shield, Sun, Trash2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -16,6 +16,7 @@ const SettingsPage = () => {
   const [activeMenu, setActiveMenu] = useState("appearance");
   const [searchQuery, setSearchQuery] = useState("");
   const [showActiveStatus, setShowActiveStatus] = useState(authUser?.showLastSeen ?? true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(authUser?.notificationsEnabled ?? true);
   const [friendRequests, setFriendRequests] = useState("everyone");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [captchaValue, setCaptchaValue] = useState("");
@@ -49,6 +50,11 @@ const SettingsPage = () => {
     await updateProfile({ showLastSeen: val });
   };
 
+  const handleToggleNotifications = async (val) => {
+    setNotificationsEnabled(val);
+    await updateProfile({ notificationsEnabled: val });
+  };
+
   const handleOpenDeleteModal = () => {
     const target = `DELETE-${Math.floor(1000 + Math.random() * 9000)}`;
     setCaptchaTarget(target);
@@ -70,6 +76,12 @@ const SettingsPage = () => {
       title: "Appearance",
       icon: <Palette className="w-4 h-4" />,
       keywords: ["appearance", "theme", "light", "dark", "system"],
+    },
+    {
+      id: "notifications",
+      title: "Notifications",
+      icon: <Bell className="w-4 h-4" />,
+      keywords: ["notifications", "alerts", "popup", "new message"],
     },
     {
       id: "privacy",
@@ -128,6 +140,25 @@ const SettingsPage = () => {
               </button>
             );
           })}
+        </div>
+      );
+    }
+
+    if (activeMenu === "notifications") {
+      return (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-4 p-4 bg-[#1a1a20] border border-[#2a2a34] rounded-xl">
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-white">New Message Popups</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">Show a popup notification when you receive a new message</p>
+            </div>
+            <input
+              type="checkbox"
+              className="toggle toggle-primary shrink-0"
+              checked={notificationsEnabled}
+              onChange={(e) => handleToggleNotifications(e.target.checked)}
+            />
+          </div>
         </div>
       );
     }

@@ -78,113 +78,103 @@ const ChatContainer = () => {
           return (
             <div 
               key={message._id} 
-              className={message.isSystem ? "flex justify-center my-2 w-full" : `chat ${isMe ? "chat-end" : "chat-start"} group/msg relative`}
+              className={message.isSystem ? "flex justify-center my-2 w-full" : `flex ${isMe ? "flex-row-reverse" : ""} items-end gap-2 group/msg relative`}
               onTouchStart={() => handleTouchStart(message._id)}
               onTouchEnd={handleTouchEnd}
             >
               {!message.isSystem && (
-                <div className="chat-image avatar">
-                  <div className="size-10 rounded-full">
-                    <img
-                      src={isMe
-                        ? authUser.profilePic || DEFAULT_AVATAR
-                        : selectedUser.profilePic || DEFAULT_AVATAR}
-                      alt="Users Profile" />
-                  </div>
+                <div className="shrink-0 size-9 rounded-full overflow-hidden">
+                  <img
+                    src={isMe
+                      ? authUser.profilePic || DEFAULT_AVATAR
+                      : selectedUser.profilePic || DEFAULT_AVATAR}
+                    alt="Users Profile" />
                 </div>
               )}
-              {!message.isSystem && (
-                <div className='chat-header mb-1 text-zinc-500 text-[11px]'>
-                  <time className='ml-1'>
-                    {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
-                  </time>
-                </div>
-              )}
-              {message.isSystem ? (
-                <div className="px-4 py-1.5 rounded-full bg-red-500/10 text-red-400 text-xs font-medium border border-red-500/20">
-                  ⚠️ {message.text}
-                </div>
-              ) : message.image ? (
-                /* Premium image message layout */
-                <div className="flex flex-col items-start gap-1 relative">
-                  <div className="relative rounded-2xl overflow-hidden shadow-md border border-[#2e2e38] group/img-container max-w-[280px] sm:max-w-[360px]">
-                    <img 
-                      src={message.image} 
-                      alt="Attachment" 
-                      className="w-full h-auto object-cover max-h-[320px] rounded-2xl" 
-                    />
-                    {message.fileName && (
-                      <a 
-                        href={message.image}
-                        download={message.fileName}
-                        className="absolute bottom-3 right-3 p-2.5 rounded-full bg-black/70 hover:bg-black/90 text-white transition-all shadow-md flex items-center justify-center cursor-pointer"
-                        title={`Download ${message.fileName}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                        </svg>
-                      </a>
-                    )}
+              <div className={`flex flex-col ${isMe ? "items-end" : "items-start"} max-w-[75%]`}>
+                {message.isSystem ? (
+                  <div className="px-4 py-1.5 rounded-full bg-red-500/10 text-red-400 text-xs font-medium border border-red-500/20">
+                    ⚠️ {message.text}
                   </div>
-                  
-                  {message.text && (
-                    <div className="flex items-center gap-2 max-w-full">
-                      <div className={`px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${
-                        isMe 
-                          ? "bg-[#2563eb] text-white shadow-md" 
-                          : "bg-[#24242b] text-zinc-200"
-                      }`}>
-                        {message.text}
-                      </div>
+                ) : (
+                  <>
+                    <div className='text-zinc-500 text-[10px] mb-0.5 px-1'>
+                      {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 max-w-[85%] sm:max-w-[70%]">
-                  {isMe && (
-                    <button 
-                      onClick={() => setActiveMessageOptions(activeMessageOptions === message._id ? null : message._id)}
-                      className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 text-zinc-500 hover:text-white rounded-full"
-                      title="Options"
-                    >
-                      <MoreVertical size={14} />
-                    </button>
-                  )}
-                  
-                  <div className={`chat-bubble text-sm sm:text-base px-4 py-2.5 rounded-2xl shadow-sm ${
-                    isMe 
-                      ? "bg-[#2563eb] text-white" 
-                      : "bg-[#24242b] text-zinc-200"
-                  }`}>
-                    {message.text}
-                  </div>
-
-                  {!isMe && (
-                    <button 
-                      onClick={() => setActiveMessageOptions(activeMessageOptions === message._id ? null : message._id)}
-                      className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 text-zinc-500 hover:text-white rounded-full"
-                      title="Options"
-                    >
-                      <MoreVertical size={14} />
-                    </button>
-                  )}
-                </div>
-              )}
+                    {message.image ? (
+                      <div className="flex flex-col gap-1">
+                        <div className="relative rounded-2xl overflow-hidden shadow-md border border-[#2e2e38] group/img-container max-w-[280px] sm:max-w-[360px]">
+                          <img 
+                            src={message.image} 
+                            alt="Attachment" 
+                            className="w-full h-auto object-cover max-h-[320px] rounded-2xl" 
+                          />
+                          {message.fileName && (
+                            <a 
+                              href={message.image}
+                              download={message.fileName}
+                              className="absolute bottom-3 right-3 p-2.5 rounded-full bg-black/70 hover:bg-black/90 text-white transition-all shadow-md flex items-center justify-center cursor-pointer"
+                              title={`Download ${message.fileName}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                              </svg>
+                            </a>
+                          )}
+                        </div>
+                        {message.text && (
+                          <div className={`px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${
+                            isMe ? "bg-[#2563eb] text-white shadow-md" : "bg-[#24242b] text-zinc-200"
+                          }`}>
+                            {message.text}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        {!isMe && (
+                          <button 
+                            onClick={() => setActiveMessageOptions(activeMessageOptions === message._id ? null : message._id)}
+                            className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 text-zinc-500 hover:text-white rounded-full self-end"
+                            title="Options"
+                          >
+                            <MoreVertical size={14} />
+                          </button>
+                        )}
+                        <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm whitespace-pre-wrap ${
+                          isMe 
+                            ? "bg-[#2563eb] text-white" 
+                            : "bg-[#24242b] text-zinc-200"
+                        }`}>
+                          {message.text}
+                        </div>
+                        {isMe && (
+                          <button 
+                            onClick={() => setActiveMessageOptions(activeMessageOptions === message._id ? null : message._id)}
+                            className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 text-zinc-500 hover:text-white rounded-full self-end"
+                            title="Options"
+                          >
+                            <MoreVertical size={14} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           );
         })}
         {isTyping && (
-          <div className="chat chat-start">
-            <div className="chat-image avatar">
-              <div className="size-10 rounded-full">
-                <img
-                  src={selectedUser.profilePic || DEFAULT_AVATAR}
-                  alt="User avatar"
-                />
-              </div>
+          <div className="flex items-end gap-2">
+            <div className="shrink-0 size-9 rounded-full overflow-hidden">
+              <img
+                src={selectedUser.profilePic || DEFAULT_AVATAR}
+                alt="User avatar"
+              />
             </div>
-            <div className="chat-bubble min-h-8 flex items-center gap-2">
+            <div className="bg-[#24242b] px-4 py-3 rounded-2xl min-h-8 flex items-center gap-2">
               <div className="loading loading-dots loading-sm"></div>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import { ArrowLeft, Send, Copy, ShieldAlert, Info, Loader2, Pencil, Check, X, Phone, Video } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { DEFAULT_AVATAR } from "../constants";
 import GroupInfoPanel from "./GroupInfoPanel";
 
 const GroupChatView = () => {
@@ -178,21 +179,32 @@ const GroupChatView = () => {
                         const isMe = message.senderId === authUser?._id;
                         const sender = selectedGroup.members?.find(m => m._id === message.senderId);
                         return (
-                            <div key={message._id} className={`chat ${isMe ? "chat-end" : "chat-start"} max-w-[92%] sm:max-w-[80%]`}>
+                            <div key={message._id} className={`flex ${isMe ? "flex-row-reverse" : ""} items-end gap-2 max-w-[92%] sm:max-w-[80%] ${isMe ? "self-end" : "self-start"}`}>
                                 {!isMe && (
-                                    <div className="chat-header text-[11px] text-zinc-400 mb-0.5 truncate">
-                                        {sender ? sender.fullName : "Unknown User"}
+                                    <div className="shrink-0 size-8 rounded-full overflow-hidden">
+                                        <img
+                                            src={sender?.profilePic || DEFAULT_AVATAR}
+                                            alt={sender?.fullName || "User"}
+                                            className="w-full h-full object-cover"
+                                        />
                                     </div>
                                 )}
-                                <div className={`chat-bubble text-sm sm:text-base px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl shadow-sm break-words ${
-                                    isMe
-                                        ? "bg-[#2563eb] text-white"
-                                        : "bg-[#24242b] text-zinc-200"
-                                }`}>
-                                    {message.text}
-                                </div>
-                                <div className="chat-footer text-[10px] text-zinc-500 mt-0.5">
-                                    {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                <div className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                                    {!isMe && sender && (
+                                        <div className="text-[11px] text-zinc-400 mb-0.5 px-1 truncate max-w-[200px]">
+                                            {sender.fullName}
+                                        </div>
+                                    )}
+                                    <div className={`text-sm sm:text-base px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl shadow-sm break-words ${
+                                        isMe
+                                            ? "bg-[#2563eb] text-white"
+                                            : "bg-[#24242b] text-zinc-200"
+                                    }`}>
+                                        {message.text}
+                                    </div>
+                                    <div className="text-[10px] text-zinc-500 mt-0.5 px-1">
+                                        {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                    </div>
                                 </div>
                             </div>
                         );

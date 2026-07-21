@@ -3,6 +3,7 @@ import { toast } from "react-hot-toast";
 import { axiosInstance } from "../lib/axios.js";
 import { useAuthStore } from "./useAuthStore.js";
 import { playMessageSound } from "../lib/sounds.js";
+import { showNewMessageNotification } from "../lib/notifications.jsx";
 
 const emitWithAck = (socket, event, payload, timeout = 7000) => new Promise((resolve) => {
     if (!socket?.connected) {
@@ -306,6 +307,18 @@ export const useGroupStore = create((set, get) => ({
                 }
             });
             playMessageSound();
+
+            const selectedGroup = get().selectedGroup;
+            if (!selectedGroup || selectedGroup._id !== groupId) {
+                const group = get().groups.find(g => g._id === groupId);
+                const sender = group?.members?.find(m => m._id === senderId);
+                showNewMessageNotification(
+                    sender?.fullName || "Unknown User",
+                    senderId,
+                    message?.text || "",
+                    sender?.profilePic
+                );
+            }
         });
 
         socket.on("group-message-ack", ({ groupId, tempId, realId, createdAt }) => {

@@ -5,6 +5,7 @@ import io from "socket.io-client";
 import { useChatStore } from "./useChatStore.js";
 import { useGroupStore } from "./useGroupStore.js";
 import { playMessageSound } from "../lib/sounds.js";
+import { showNewMessageNotification } from "../lib/notifications.jsx";
 import { getLocalKeypair, saveLocalKeypair, generateE2EEKeypair, decryptPayload, importPublicKey, deriveSharedKey } from "../lib/crypto.js";
 import { saveLocalMessage, deleteLocalMessage } from "../lib/db.js";
 
@@ -288,6 +289,16 @@ export const useAuthStore = create((set, get) => ({
 
             await saveLocalMessage(msg);
             playMessageSound();
+
+            if (!chatStore.selectedUser || chatStore.selectedUser._id !== from) {
+                const sender = chatStore.users.find(u => u._id === from);
+                showNewMessageNotification(
+                    sender?.fullName || "Unknown User",
+                    from,
+                    msg?.text || "",
+                    sender?.profilePic
+                );
+            }
             
             if (chatStore.selectedUser && chatStore.selectedUser._id === from) {
                 const currentMsgs = chatStore.messages;
