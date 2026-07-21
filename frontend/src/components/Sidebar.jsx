@@ -73,7 +73,7 @@ const Sidebar = () => {
                 showStatus={!user.isDeletedAccount}
               />
 
-              <div className="hidden lg:block min-w-0 flex-1">
+              <div className="block md:hidden lg:block min-w-0 flex-1">
                 <div className="font-semibold text-sm truncate text-white">
                   {user.isDeletedAccount ? "Deleted User" : user.fullName}
                 </div>

@@ -69,7 +69,7 @@ const HomePage = () => {
                 }`}
               >
                 <Users className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden lg:inline truncate">Friends</span>
+                <span className="inline md:hidden lg:inline truncate">Friends</span>
               </button>
               <button
                 onClick={() => { setActiveTab("groups"); setSelectedUser(null); }}
@@ -80,7 +80,7 @@ const HomePage = () => {
                 }`}
               >
                 <FolderPlus className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden lg:inline truncate">Groups</span>
+                <span className="inline md:hidden lg:inline truncate">Groups</span>
               </button>
             </div>
           </div>
@@ -98,7 +98,7 @@ const HomePage = () => {
                     className="w-full py-2 bg-[#2563eb] hover:bg-blue-600 text-white flex items-center justify-center gap-1.5 rounded-xl text-sm font-semibold transition-all"
                   >
                     <Plus className="w-4 h-4" />
-                    <span className="hidden lg:inline text-xs">New Group</span>
+                    <span className="inline md:hidden lg:inline text-xs">New Group</span>
                   </button>
                   <div className="relative">
                     <input
@@ -138,7 +138,7 @@ const HomePage = () => {
                             {(group.name || "G").substring(0, 2).toUpperCase()}
                           </div>
                         )}
-                        <div className="hidden lg:block min-w-0 flex-1">
+                        <div className="block md:hidden lg:block min-w-0 flex-1">
                           <div className="font-semibold text-sm truncate text-white">{group.name}</div>
                           <div className="text-xs text-zinc-400 truncate mt-0.5">
                             {group.desc || `${group.members?.length || 0} members`}

@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useGroupStore } from "../store/useGroupStore";
 import { useAuthStore } from "../store/useAuthStore";
-import { ArrowLeft, Send, Copy, ShieldAlert, Info, Loader2 } from "lucide-react";
+import { ArrowLeft, Send, Copy, ShieldAlert, Info, Loader2, Pencil, Check, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 import GroupInfoPanel from "./GroupInfoPanel";
 
 const GroupChatView = () => {
-    const { selectedGroup, setSelectedGroup, groupMessages, sendGroupMessage, approveRequest, setGroupInfoOpen, isMessagesLoading } = useGroupStore();
+    const { selectedGroup, setSelectedGroup, groupMessages, sendGroupMessage, approveRequest, setGroupInfoOpen, updateGroupName, isMessagesLoading } = useGroupStore();
     const { authUser } = useAuthStore();
     const [text, setText] = useState("");
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [editName, setEditName] = useState("");
     const messagesEndRef = useRef(null);
 
     useEffect(() => {
@@ -19,6 +21,21 @@ const GroupChatView = () => {
 
     const messages = groupMessages[selectedGroup._id] || [];
     const isAdmin = selectedGroup.admins?.includes(authUser?._id);
+
+    const startEditingName = () => {
+        setEditName(selectedGroup.name || "");
+        setIsEditingName(true);
+    };
+
+    const saveGroupName = async () => {
+        const nextName = editName.trim();
+        if (!nextName || nextName === selectedGroup.name) {
+            setIsEditingName(false);
+            return;
+        }
+        await updateGroupName(selectedGroup._id, nextName);
+        setIsEditingName(false);
+    };
 
     const handleSend = (e) => {
         e.preventDefault();
@@ -58,9 +75,47 @@ const GroupChatView = () => {
                             </div>
                         )}
                         <div className="min-w-0">
-                            <h3 className="font-bold text-sm sm:text-base text-white group-hover:text-primary transition-colors truncate">
-                                {selectedGroup.name}
-                            </h3>
+                            {isEditingName ? (
+                                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                        type="text"
+                                        value={editName}
+                                        onChange={(e) => setEditName(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") saveGroupName();
+                                            if (e.key === "Escape") setIsEditingName(false);
+                                        }}
+                                        className="w-36 sm:w-52 px-2.5 py-1 rounded-lg bg-[#1a1a20] border border-[#2a2a34] text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                        autoFocus
+                                        maxLength={50}
+                                    />
+                                    <button type="button" onClick={saveGroupName} className="w-7 h-7 rounded-full bg-[#2563eb] hover:bg-blue-600 flex items-center justify-center text-white" title="Save group name">
+                                        <Check className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button type="button" onClick={() => setIsEditingName(false)} className="w-7 h-7 rounded-full bg-[#2a2a34] hover:bg-[#33333e] flex items-center justify-center text-zinc-300" title="Cancel">
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    <h3 className="font-bold text-sm sm:text-base text-white group-hover:text-primary transition-colors truncate">
+                                        {selectedGroup.name || "Untitled Group"}
+                                    </h3>
+                                    {isAdmin && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                startEditingName();
+                                            }}
+                                            className="w-6 h-6 rounded-full bg-[#1f1f26] hover:bg-[#2a2a34] flex items-center justify-center text-zinc-400 hover:text-white transition-all shrink-0"
+                                            title="Edit group name"
+                                        >
+                                            <Pencil className="w-3 h-3" />
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                             <p className="text-[11px] sm:text-xs text-zinc-400 truncate">
                                 {selectedGroup.members?.length || 0} members
                             </p>

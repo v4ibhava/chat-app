@@ -12,6 +12,15 @@ export const useGroupStore = create((set, get) => ({
     isGroupInfoOpen: false,
     isMessagesLoading: false,
 
+    applyGroupUpdate: (updatedGroup) => {
+        if (!updatedGroup?._id) return;
+        const { groups, selectedGroup } = get();
+        set({
+            groups: groups.map(g => g._id === updatedGroup._id ? updatedGroup : g),
+            ...(selectedGroup?._id === updatedGroup._id ? { selectedGroup: updatedGroup } : {})
+        });
+    },
+
     getGroups: async () => {
         set({ isGroupsLoading: true });
         try {
@@ -60,14 +69,25 @@ export const useGroupStore = create((set, get) => ({
         if (!myId) return;
 
         try {
-            await axiosInstance.post("/groups", {
+            const res = await axiosInstance.post("/groups", {
                 name: name.trim(),
                 desc: "Group Chat Room",
                 members: memberIds
             });
 
+            const createdGroup = res.data;
+            const socket = useAuthStore.getState().socket;
+            if (createdGroup?._id) {
+                set({
+                    groups: [createdGroup, ...get().groups.filter(g => g._id !== createdGroup._id)],
+                    selectedGroup: createdGroup,
+                    isGroupInfoOpen: false
+                });
+                socket?.emit("join-group-rooms", [createdGroup._id]);
+                get().fetchGroupMessages(createdGroup._id);
+            }
+
             toast.success("Group created successfully!");
-            get().getGroups();
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to create group");
         }
@@ -75,12 +95,12 @@ export const useGroupStore = create((set, get) => ({
 
     updateGroupName: async (groupId, newName) => {
         try {
-            await axiosInstance.put(`/groups/${groupId}`, {
+            const res = await axiosInstance.put(`/groups/${groupId}`, {
                 name: newName.trim()
             });
 
+            get().applyGroupUpdate(res.data);
             toast.success("Group name updated!");
-            get().getGroups();
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to update group name");
         }
@@ -88,11 +108,11 @@ export const useGroupStore = create((set, get) => ({
 
     updateGroupAvatar: async (groupId, base64Image) => {
         try {
-            await axiosInstance.put(`/groups/${groupId}`, {
+            const res = await axiosInstance.put(`/groups/${groupId}`, {
                 groupPic: base64Image
             });
+            get().applyGroupUpdate(res.data);
             toast.success("Group avatar updated!");
-            get().getGroups();
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to update avatar");
         }
@@ -100,11 +120,11 @@ export const useGroupStore = create((set, get) => ({
 
     removeGroupAvatar: async (groupId) => {
         try {
-            await axiosInstance.put(`/groups/${groupId}`, {
+            const res = await axiosInstance.put(`/groups/${groupId}`, {
                 removeAvatar: true
             });
+            get().applyGroupUpdate(res.data);
             toast.success("Group avatar removed!");
-            get().getGroups();
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to remove avatar");
         }
@@ -188,6 +208,15 @@ export const useGroupStore = create((set, get) => ({
                 });
             }
         } catch (error) {
+            const socket = useAuthStore.getState().socket;
+            if (socket?.connected) {
+                socket.emit("group-message", {
+                    groupId,
+                    message: payload
+                });
+                return;
+            }
+
             const messages = get().groupMessages[groupId] || [];
             set({
                 groupMessages: {
@@ -261,8 +290,12 @@ export const useGroupStore = create((set, get) => ({
             get().getGroups();
         });
 
-        socket.on("group-metadata-updated", () => {
-            get().getGroups();
+        socket.on("group-metadata-updated", ({ group }) => {
+            if (group?._id) {
+                get().applyGroupUpdate(group);
+            } else {
+                get().getGroups();
+            }
         });
     },
 

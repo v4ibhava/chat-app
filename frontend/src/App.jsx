@@ -48,7 +48,7 @@ const App = () => {
         <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to="/"/>} />
         <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to="/"/>} />
         <Route path="/forgot-password" element={!authUser ? <ForgotPasswordPage /> : <Navigate to="/"/>} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings" element={authUser ? <SettingsPage /> : <Navigate to="/login"/>} />
         <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to="/login"/>} />
         <Route path="/friends" element={authUser ? <FriendsPage /> : <Navigate to="/login"/>} />
         <Route path="/invite/:inviteCode" element={authUser ? <GroupInvitePage /> : <Navigate to="/login"/>} />

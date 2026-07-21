@@ -10,7 +10,7 @@ import UserAvatar from "./UserAvatar";
 
 const GroupInfoPanel = () => {
     const {
-        selectedGroup, setSelectedGroup, isGroupInfoOpen, setGroupInfoOpen,
+        selectedGroup, isGroupInfoOpen, setGroupInfoOpen,
         updateGroupName, updateGroupAvatar, removeGroupAvatar,
         deleteGroup, leaveGroup, removeMember
     } = useGroupStore();
