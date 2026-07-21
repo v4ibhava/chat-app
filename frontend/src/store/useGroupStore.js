@@ -344,6 +344,7 @@ export const useGroupStore = create((set, get) => ({
         const socket = useAuthStore.getState().socket;
         if (socket) {
             socket.off("group-key-exchange");
+            socket.off("group-key-request");
             socket.off("group-message");
         }
     },
