@@ -72,36 +72,37 @@ const Notifications = () => {
     <div className="relative">
       <button 
         onClick={() => setShowPanel(!showPanel)} 
-        className="btn btn-ghost btn-sm btn-circle relative"
+        className="w-10 h-10 rounded-full bg-[#1f1f26] hover:bg-[#2a2a34] flex items-center justify-center text-zinc-400 hover:text-white transition-all relative"
+        title="Notifications"
       >
-        <Bell className="w-5 h-5" />
+        <Bell className="w-4 h-4" />
         {friendRequests.length > 0 && (
-          <span className="absolute -top-1 -right-1 badge badge-primary badge-xs animate-pulse">
+          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full animate-pulse shadow-sm">
             {friendRequests.length}
           </span>
         )}
       </button>
 
       {showPanel && (
-        <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-base-100 border border-base-300 rounded-xl shadow-2xl z-50 overflow-hidden">
-          <div className="p-3 border-b border-base-300 flex justify-between items-center bg-base-200">
-            <h3 className="font-semibold flex items-center gap-2">
-              <Bell className="w-4 h-4" /> Notifications
+        <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-[#18181c] border border-[#282832] rounded-2xl shadow-2xl z-50 overflow-hidden">
+          <div className="p-3 border-b border-[#282832] flex justify-between items-center bg-[#1f1f26]">
+            <h3 className="font-semibold flex items-center gap-2 text-white text-sm">
+              <Bell className="w-4 h-4 text-zinc-400" /> Notifications
             </h3>
-            <button onClick={() => setShowPanel(false)} className="btn btn-ghost btn-xs btn-circle">
-              <X className="w-4 h-4" />
+            <button onClick={() => setShowPanel(false)} className="w-7 h-7 rounded-full bg-[#2a2a34] hover:bg-[#33333e] flex items-center justify-center text-zinc-400 hover:text-white transition-all">
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
 
           <div className="max-h-80 sm:max-h-96 overflow-y-auto">
             {friendRequests.length === 0 ? (
-              <div className="p-6 text-center text-zinc-400">
-                <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No new notifications</p>
+              <div className="p-6 text-center text-zinc-500">
+                <Bell className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-xs">No new notifications</p>
               </div>
             ) : (
               friendRequests.map(user => (
-                <div key={user._id} className="p-3 sm:p-4 border-b border-base-300 hover:bg-base-200 transition-colors">
+                <div key={user._id} className="p-3 sm:p-4 border-b border-[#282832] hover:bg-[#1f1f26] transition-colors">
                   <div className="flex items-center gap-3 mb-3">
                     <UserAvatar 
                       src={user.profilePic} 
@@ -110,20 +111,20 @@ const Notifications = () => {
                       showStatus={false}
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{user.fullName}</p>
+                      <p className="font-medium truncate text-white text-sm">{user.fullName}</p>
                       <p className="text-xs text-zinc-500">Wants to connect</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <button 
                       onClick={() => acceptRequest(user._id)}
-                      className="btn btn-sm btn-success flex-1 gap-1"
+                      className="flex-1 py-1.5 rounded-xl bg-emerald-600/70 hover:bg-emerald-600 text-white text-xs font-semibold transition-all flex items-center justify-center gap-1"
                     >
                       <UserCheck className="w-3 h-3" /> Accept
                     </button>
                     <button 
                       onClick={() => rejectRequest(user._id)}
-                      className="btn btn-sm btn-ghost flex-1"
+                      className="flex-1 py-1.5 rounded-xl bg-[#2a2a34] hover:bg-[#33333e] text-zinc-400 hover:text-white text-xs font-semibold transition-all"
                     >
                       Reject
                     </button>
@@ -133,12 +134,12 @@ const Notifications = () => {
             )}
           </div>
 
-          <div className="p-2 border-t border-base-300 bg-base-200">
+          <div className="p-2 border-t border-[#282832] bg-[#1f1f26]">
             <button 
               onClick={() => { setShowPanel(false); navigate('/friends'); }}
-              className="btn btn-sm btn-ghost w-full gap-2"
+              className="w-full py-1.5 rounded-xl bg-[#2a2a34] hover:bg-[#33333e] text-zinc-400 hover:text-white text-xs font-semibold transition-all flex items-center justify-center gap-2"
             >
-              <MessageSquare className="w-4 h-4" /> View All Chats
+              <MessageSquare className="w-3.5 h-3.5" /> View All Chats
             </button>
           </div>
         </div>
