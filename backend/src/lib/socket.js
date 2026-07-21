@@ -126,6 +126,31 @@ io.on("connection", (socket) => {
         }
     });
 
+    socket.on("request-profile-backup", async ({ targetUserId }) => {
+        if (!userId || !targetUserId) return;
+        try {
+            const receiverSocketId = getReceiverSocketId(targetUserId);
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("request-profile-backup", { requesterId: userId });
+            }
+        } catch (e) {
+            console.error("Error routing profile backup request:", e);
+        }
+    });
+
+    socket.on("restore-profile-backup", async ({ targetUserId, profilePic }) => {
+        if (!userId || !targetUserId || !profilePic) return;
+        try {
+            await User.findByIdAndUpdate(targetUserId, { profilePic });
+            const receiverSocketId = getReceiverSocketId(targetUserId);
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("profile-restored-from-peer", { profilePic });
+            }
+        } catch (e) {
+            console.error("Error restoring profile backup from peer:", e);
+        }
+    });
+
     socket.on("webrtc-signal", async ({ to, signal }) => {
         if (!userId) return;
         try {

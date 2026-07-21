@@ -7,7 +7,7 @@ import { useGroupStore } from "./useGroupStore.js";
 import { playMessageSound } from "../lib/sounds.js";
 import { showNewMessageNotification } from "../lib/notifications.jsx";
 import { getLocalKeypair, saveLocalKeypair, generateE2EEKeypair, decryptPayload, importPublicKey, deriveSharedKey } from "../lib/crypto.js";
-import { saveLocalMessage, deleteLocalMessage } from "../lib/db.js";
+import { saveLocalMessage, deleteLocalMessage, saveLocalProfilePic, getLocalProfilePic } from "../lib/db.js";
 
 
 const rawBaseUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.MODE === "development" ? "http://localhost:5000" : "/");
@@ -25,12 +25,29 @@ export const useAuthStore = create((set, get) => ({
     checkAuth: async () => {
         try {
             const res = await axiosInstance.get("/auth/check");
-            set({ authUser: res.data })
+            let user = res.data;
+            if (user?._id) {
+                if (user.profilePic) {
+                    await saveLocalProfilePic(user._id, user.profilePic);
+                } else {
+                    const localPic = await getLocalProfilePic(user._id);
+                    if (localPic) {
+                        console.log("Restoring local profile picture from IndexedDB...");
+                        user = { ...user, profilePic: localPic };
+                        axiosInstance.put("/auth/update-profile", { profilePic: localPic }).catch(() => {});
+                    }
+                }
+            }
+            set({ authUser: user });
             await get().checkAndPublishE2EEKeys();
             get().connectSocket();
+
+            if (user && !user.profilePic && get().socket) {
+                get().socket.emit("request-profile-backup", { targetUserId: user._id });
+            }
         } catch (error) {
             console.log("error in checkAuth: ", error);
-            set({ authUser: null })
+            set({ authUser: null });
         } finally {
             set({ isCheckingAuth: false });
         }
@@ -105,6 +122,9 @@ export const useAuthStore = create((set, get) => ({
         try {
             const res = await axiosInstance.put("/auth/update-profile", data);
             set({ authUser: res.data });
+            if (res.data?._id && res.data?.profilePic) {
+                await saveLocalProfilePic(res.data._id, res.data.profilePic);
+            }
             toast.success("Profile updated successfully!");
             return true;
         } catch (error) {
@@ -248,6 +268,40 @@ export const useAuthStore = create((set, get) => ({
         socket.on("friendListUpdated", () => {
             console.log("Friend list updated, refreshing...");
             useChatStore.getState().getUsers();
+        });
+
+        socket.on("friend-profile-updated", async (payload) => {
+            if (payload?.userId && payload?.profilePic) {
+                await saveLocalProfilePic(payload.userId, payload.profilePic);
+                const chatStore = useChatStore.getState();
+                const { users, selectedUser } = chatStore;
+                const newUsers = users.map(u => u._id === payload.userId ? { ...u, profilePic: payload.profilePic, fullName: payload.fullName || u.fullName } : u);
+                useChatStore.setState({ users: newUsers });
+                if (selectedUser && selectedUser._id === payload.userId) {
+                    useChatStore.setState({ selectedUser: { ...selectedUser, profilePic: payload.profilePic, fullName: payload.fullName || selectedUser.fullName } });
+                }
+            }
+        });
+
+        socket.on("request-profile-backup", async ({ requesterId }) => {
+            if (requesterId) {
+                const localBackup = await getLocalProfilePic(requesterId);
+                if (localBackup) {
+                    console.log(`Peer requested profile backup. Restoring profile picture for ${requesterId}...`);
+                    socket.emit("restore-profile-backup", { targetUserId: requesterId, profilePic: localBackup });
+                }
+            }
+        });
+
+        socket.on("profile-restored-from-peer", async ({ profilePic }) => {
+            if (profilePic) {
+                const current = get().authUser;
+                if (current) {
+                    set({ authUser: { ...current, profilePic } });
+                    await saveLocalProfilePic(current._id, profilePic);
+                    toast.success("Profile picture automatically restored from friend's backup!");
+                }
+            }
         });
 
         socket.on("friendRequestsUpdated", () => {

@@ -1,6 +1,7 @@
 const DB_NAME = "zync_local_chat";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "messages";
+const AVATAR_STORE_NAME = "profile_pics";
 
 export const initDB = () => {
   return new Promise((resolve, reject) => {
@@ -10,6 +11,9 @@ export const initDB = () => {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         const store = db.createObjectStore(STORE_NAME, { keyPath: "_id" });
         store.createIndex("chatKey", "chatKey", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(AVATAR_STORE_NAME)) {
+        db.createObjectStore(AVATAR_STORE_NAME, { keyPath: "userId" });
       }
     };
     request.onsuccess = (event) => resolve(event.target.result);
@@ -91,3 +95,43 @@ export const deleteLocalMessagesForChat = async (myId, friendId) => {
   });
 };
 
+/* --- Profile Picture Local Storage & P2P Recovery Helpers --- */
+
+export const saveLocalProfilePic = async (userId, profilePic) => {
+  if (!userId || !profilePic) return null;
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(AVATAR_STORE_NAME, "readwrite");
+    const store = transaction.objectStore(AVATAR_STORE_NAME);
+    const request = store.put({ userId, profilePic, updatedAt: new Date().toISOString() });
+    request.onsuccess = () => resolve(profilePic);
+    request.onerror = (event) => reject(event.target.error);
+  });
+};
+
+export const getLocalProfilePic = async (userId) => {
+  if (!userId) return null;
+  const db = await initDB();
+  return new Promise((resolve) => {
+    const transaction = db.transaction(AVATAR_STORE_NAME, "readonly");
+    const store = transaction.objectStore(AVATAR_STORE_NAME);
+    const request = store.get(userId);
+    request.onsuccess = (event) => {
+      const record = event.target.result;
+      resolve(record ? record.profilePic : null);
+    };
+    request.onerror = () => resolve(null);
+  });
+};
+
+export const deleteLocalProfilePic = async (userId) => {
+  if (!userId) return true;
+  const db = await initDB();
+  return new Promise((resolve) => {
+    const transaction = db.transaction(AVATAR_STORE_NAME, "readwrite");
+    const store = transaction.objectStore(AVATAR_STORE_NAME);
+    const request = store.delete(userId);
+    request.onsuccess = () => resolve(true);
+    request.onerror = () => resolve(false);
+  });
+};

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import {
   Activity, AlertCircle, ArrowLeft, Bell, Calendar, Check, Clock,
-  Eye, Moon, Monitor, Palette, Search, Shield, Sun, Trash2
+  Eye, Moon, Monitor, Palette, Search, Shield, Sun, Trash2, LogOut
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -9,7 +9,7 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
 
 const SettingsPage = () => {
-  const { authUser, updateProfile, deleteAccount } = useAuthStore();
+  const { authUser, updateProfile, deleteAccount, logout } = useAuthStore();
   const { theme, setTheme } = useThemeStore();
   const navigate = useNavigate();
 
@@ -70,6 +70,11 @@ const SettingsPage = () => {
     if (!success) setIsDeleting(false);
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
   const menus = useMemo(() => [
     {
       id: "appearance",
@@ -99,7 +104,7 @@ const SettingsPage = () => {
       id: "account",
       title: "Account",
       icon: <Shield className="w-4 h-4" />,
-      keywords: ["account", "danger", "delete", "security"],
+      keywords: ["account", "danger", "delete", "security", "logout"],
     },
   ], []);
 
@@ -123,19 +128,19 @@ const SettingsPage = () => {
                 }}
                 className={`flex items-center gap-3 p-4 rounded-xl border transition-all text-left ${
                   isSelected
-                    ? "bg-[#22222a] border-[#2563eb] ring-1 ring-[#2563eb]/30"
-                    : "bg-[#1a1a20] border-[#2a2a34] hover:bg-[#1f1f26]"
+                    ? "bg-primary/10 border-primary ring-1 ring-primary/30"
+                    : "bg-base-100 border-base-300 hover:bg-base-300/30"
                 }`}
               >
-                <div className={`p-2.5 rounded-lg ${isSelected ? "bg-[#2563eb]/20 text-[#2563eb]" : "bg-[#2a2a34] text-zinc-400"}`}>
+                <div className={`p-2.5 rounded-lg ${isSelected ? "bg-primary/20 text-primary" : "bg-base-300/50 text-base-content/60"}`}>
                   {opt.icon}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-white">{opt.name}</span>
-                    {isSelected && <Check className="w-3.5 h-3.5 text-[#2563eb]" />}
+                    <span className="text-sm font-semibold text-base-content">{opt.name}</span>
+                    {isSelected && <Check className="w-3.5 h-3.5 text-primary" />}
                   </div>
-                  <p className="text-[11px] text-zinc-500">{opt.desc}</p>
+                  <p className="text-[11px] text-base-content/60">{opt.desc}</p>
                 </div>
               </button>
             );
@@ -147,10 +152,10 @@ const SettingsPage = () => {
     if (activeMenu === "notifications") {
       return (
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-4 p-4 bg-[#1a1a20] border border-[#2a2a34] rounded-xl">
+          <div className="flex items-center justify-between gap-4 p-4 bg-base-100 border border-base-300 rounded-xl">
             <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-white">New Message Popups</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">Show a popup notification when you receive a new message</p>
+              <h3 className="text-sm font-semibold text-base-content">New Message Popups</h3>
+              <p className="text-xs text-base-content/60 mt-0.5">Show a popup notification when you receive a new message</p>
             </div>
             <input
               type="checkbox"
@@ -166,10 +171,10 @@ const SettingsPage = () => {
     if (activeMenu === "privacy") {
       return (
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-4 p-4 bg-[#1a1a20] border border-[#2a2a34] rounded-xl">
+          <div className="flex items-center justify-between gap-4 p-4 bg-base-100 border border-base-300 rounded-xl">
             <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-white">Online & Last Active Status</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">Let friends see when you are online or last active</p>
+              <h3 className="text-sm font-semibold text-base-content">Online & Last Active Status</h3>
+              <p className="text-xs text-base-content/60 mt-0.5">Let friends see when you are online or last active</p>
             </div>
             <input
               type="checkbox"
@@ -179,10 +184,10 @@ const SettingsPage = () => {
             />
           </div>
 
-          <div className="p-4 bg-[#1a1a20] border border-[#2a2a34] rounded-xl space-y-3">
+          <div className="p-4 bg-base-100 border border-base-300 rounded-xl space-y-3">
             <div>
-              <h3 className="text-sm font-semibold text-white">Friend Requests</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">Choose who can send you requests</p>
+              <h3 className="text-sm font-semibold text-base-content">Friend Requests</h3>
+              <p className="text-xs text-base-content/60 mt-0.5">Choose who can send you requests</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {["everyone", "friends-of-friends", "no-one"].map((mode) => (
@@ -191,8 +196,8 @@ const SettingsPage = () => {
                   onClick={() => setFriendRequests(mode)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     friendRequests === mode
-                      ? "bg-[#2563eb] text-white"
-                      : "bg-[#2a2a34] text-zinc-400 hover:text-white hover:bg-[#33333e]"
+                      ? "bg-primary text-white"
+                      : "bg-base-300/50 text-base-content/70 hover:text-base-content hover:bg-base-300"
                   }`}
                 >
                   {mode === "friends-of-friends" ? "Friends of Friends" : mode.charAt(0).toUpperCase() + mode.slice(1).replace(/-/g, " ")}
@@ -214,12 +219,12 @@ const SettingsPage = () => {
       return (
         <div className="space-y-2">
           {cards.map((card) => (
-            <div key={card.label} className="flex items-center justify-between gap-4 p-4 bg-[#1a1a20] border border-[#2a2a34] rounded-xl">
+            <div key={card.label} className="flex items-center justify-between gap-4 p-4 bg-base-100 border border-base-300 rounded-xl">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2 rounded-lg bg-[#2a2a34] shrink-0">{card.icon}</div>
-                <span className="text-sm font-semibold text-white">{card.label}</span>
+                <div className="p-2 rounded-lg bg-base-300/50 shrink-0">{card.icon}</div>
+                <span className="text-sm font-semibold text-base-content">{card.label}</span>
               </div>
-              <span className="text-sm font-bold text-zinc-300 shrink-0">{card.value}</span>
+              <span className="text-sm font-bold text-base-content/80 shrink-0">{card.value}</span>
             </div>
           ))}
         </div>
@@ -227,19 +232,35 @@ const SettingsPage = () => {
     }
 
     return (
-      <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl space-y-3">
-        <div className="flex items-center gap-2 text-red-400">
-          <AlertCircle className="w-4 h-4" />
-          <h3 className="text-sm font-semibold">Danger Zone</h3>
+      <div className="space-y-4">
+        <div className="p-4 bg-base-100 border border-base-300 rounded-xl flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-base-content">Log Out of Account</h3>
+            <p className="text-xs text-base-content/60 mt-0.5">End your current session on this device</p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-semibold transition-all"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Log Out
+          </button>
         </div>
-        <p className="text-xs text-zinc-500">Permanently delete your account and associated data. This cannot be undone.</p>
-        <button
-          onClick={handleOpenDeleteModal}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600/70 hover:bg-red-600 text-white text-xs font-semibold transition-all"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-          Delete Account
-        </button>
+
+        <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl space-y-3">
+          <div className="flex items-center gap-2 text-red-400">
+            <AlertCircle className="w-4 h-4" />
+            <h3 className="text-sm font-semibold">Danger Zone</h3>
+          </div>
+          <p className="text-xs text-base-content/60">Permanently delete your account and associated data. This cannot be undone.</p>
+          <button
+            onClick={handleOpenDeleteModal}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-all"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete Account
+          </button>
+        </div>
       </div>
     );
   };
@@ -247,31 +268,31 @@ const SettingsPage = () => {
   const activeTitle = menus.find(menu => menu.id === activeMenu)?.title || "Settings";
 
   return (
-    <div className="min-h-screen bg-[#0a0a0c] pt-20 pb-12 px-3 sm:px-6">
+    <div className="min-h-screen bg-base-100 pt-20 pb-12 px-3 sm:px-6 transition-colors duration-200">
       <div className="max-w-5xl mx-auto space-y-5">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate("/")}
-            className="w-10 h-10 rounded-full bg-[#1c1c22] hover:bg-[#282834] flex items-center justify-center text-zinc-400 hover:text-white transition-all"
+            className="w-10 h-10 rounded-full bg-base-200 border border-base-300 hover:bg-base-300/50 flex items-center justify-center text-base-content/70 hover:text-base-content transition-all"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Settings</h1>
-            <p className="text-xs text-zinc-400">Manage preferences, privacy, and account controls</p>
+            <h1 className="text-2xl font-bold text-base-content tracking-tight">Settings</h1>
+            <p className="text-xs text-base-content/60">Manage preferences, privacy, and account controls</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
-          <aside className="bg-[#121215] border border-[#1e1e24] rounded-2xl p-3 h-fit">
+          <aside className="bg-base-200 border border-base-300 rounded-2xl p-3 h-fit">
             <div className="relative mb-3">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/50" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search settings"
-                className="w-full py-2.5 pl-9 pr-3 bg-[#1a1a20] border border-[#2a2a34] text-white text-sm placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="w-full py-2.5 pl-9 pr-3 bg-base-100 border border-base-300 text-base-content text-sm placeholder:text-base-content/40 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/40"
               />
             </div>
 
@@ -282,8 +303,8 @@ const SettingsPage = () => {
                   onClick={() => setActiveMenu(menu.id)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-sm font-semibold transition-all ${
                     activeMenu === menu.id
-                      ? "bg-[#2563eb] text-white"
-                      : "text-zinc-400 hover:text-white hover:bg-[#1a1a20]"
+                      ? "bg-primary text-white"
+                      : "text-base-content/70 hover:text-base-content hover:bg-base-100"
                   }`}
                 >
                   {menu.icon}
@@ -293,8 +314,8 @@ const SettingsPage = () => {
             </nav>
           </aside>
 
-          <section className="bg-[#121215] border border-[#1e1e24] rounded-2xl p-5 sm:p-6 min-w-0">
-            <h2 className="text-lg font-bold text-white mb-4">{activeTitle}</h2>
+          <section className="bg-base-200 border border-base-300 rounded-2xl p-5 sm:p-6 min-w-0">
+            <h2 className="text-lg font-bold text-base-content mb-4">{activeTitle}</h2>
             {renderContent()}
           </section>
         </div>
@@ -303,15 +324,15 @@ const SettingsPage = () => {
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowDeleteModal(false)} />
-          <div className="relative w-full max-w-md bg-[#18181c] border border-[#282832] rounded-2xl p-6 shadow-2xl space-y-4">
+          <div className="relative w-full max-w-md bg-base-200 border border-base-300 rounded-2xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center gap-3 text-red-400">
               <Trash2 className="w-6 h-6" />
-              <h3 className="text-lg font-bold text-white">Confirm Account Deletion</h3>
+              <h3 className="text-lg font-bold text-base-content">Confirm Account Deletion</h3>
             </div>
-            <p className="text-xs text-zinc-400 leading-relaxed">
+            <p className="text-xs text-base-content/60 leading-relaxed">
               Type the security phrase below to permanently delete your account.
             </p>
-            <div className="p-3 bg-[#121215] border border-[#282832] rounded-xl text-center font-mono font-bold text-primary select-all">
+            <div className="p-3 bg-base-100 border border-base-300 rounded-xl text-center font-mono font-bold text-primary select-all">
               {captchaTarget}
             </div>
 
@@ -321,13 +342,13 @@ const SettingsPage = () => {
                 value={captchaValue}
                 onChange={(e) => setCaptchaValue(e.target.value)}
                 placeholder="Type security phrase"
-                className="w-full py-2.5 px-4 bg-[#1a1a20] border border-[#2a2a34] text-white text-sm placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-1 focus:ring-red-500/50"
+                className="w-full py-2.5 px-4 bg-base-100 border border-base-300 text-base-content text-sm rounded-xl focus:outline-none focus:ring-1 focus:ring-red-500/50"
               />
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setShowDeleteModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-[#2a2a34] hover:bg-[#33333e] text-zinc-300 text-sm font-semibold transition-all"
+                  className="flex-1 py-2.5 rounded-xl bg-base-300/60 hover:bg-base-300 text-base-content text-sm font-semibold transition-all"
                 >
                   Cancel
                 </button>

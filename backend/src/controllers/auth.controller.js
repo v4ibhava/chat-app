@@ -1,8 +1,9 @@
 import { generateToken } from "../lib/utils.js";
-import User from "../models/user.model.js"
-import bcrypt from "bcryptjs"
-import cloudinary from "../lib/cloudinary.js"
-import { sendOTPEmail, sendWelcomeEmail, sendLoginEmail } from "../lib/email.js"
+import User from "../models/user.model.js";
+import bcrypt from "bcryptjs";
+import cloudinary from "../lib/cloudinary.js";
+import { sendOTPEmail, sendWelcomeEmail, sendLoginEmail } from "../lib/email.js";
+import { io, getReceiverSocketId } from "../lib/socket.js";
 
 export const signup = async (req, res) => {
     const { fullName, email, password } = req.body
@@ -138,8 +139,8 @@ export const updateProfile = async (req, res) => {
         }
         
         if (profilePic) {
-            const uploadResponse = await cloudinary.uploader.upload(profilePic);
-            updates.profilePic = uploadResponse.secure_url;
+            // Save compressed base64 directly to MongoDB without Cloudinary dependency
+            updates.profilePic = profilePic;
         }
         
         if (fullName !== undefined) {
@@ -205,6 +206,27 @@ export const updateProfile = async (req, res) => {
         }
 
         const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true }).select("-password");
+
+        // Notify online friends about profile/avatar update for live sync & P2P mirroring
+        try {
+            const userWithFriends = await User.findById(userId).select("friends");
+            if (userWithFriends && Array.isArray(userWithFriends.friends)) {
+                userWithFriends.friends.forEach(friendId => {
+                    const socketId = getReceiverSocketId(friendId.toString());
+                    if (socketId) {
+                        io.to(socketId).emit("friend-profile-updated", {
+                            userId: updatedUser._id.toString(),
+                            profilePic: updatedUser.profilePic,
+                            fullName: updatedUser.fullName,
+                            username: updatedUser.username
+                        });
+                    }
+                });
+            }
+        } catch (e) {
+            console.error("Error notifying friends of profile update:", e);
+        }
+
         res.status(200).json(updatedUser);
     } catch (error) {
         console.log("Error in update profile:", error);

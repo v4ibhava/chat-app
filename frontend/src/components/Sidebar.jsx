@@ -15,7 +15,7 @@ const Sidebar = () => {
   if (isUsersLoading) return <SidebarSkeleton selectedUser={selectedUser} />;
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#121215] border-r border-[#1e1e24]">
+    <div className="flex flex-col h-full w-full bg-base-200 border-r border-base-300 transition-colors duration-200">
       {/* Friends List */}
       <div className="flex-1 overflow-y-auto px-3 py-1 space-y-1.5">
         {users.map((user) => {
@@ -29,8 +29,8 @@ const Sidebar = () => {
               className={`
                 w-full p-3 flex items-center gap-3.5 rounded-2xl transition-all duration-200 text-left
                 ${isSelected 
-                  ? "bg-[#22222a] text-white shadow-md border border-[#2e2e38]" 
-                  : "hover:bg-[#1a1a20] text-zinc-300"}
+                  ? "bg-base-100 text-base-content shadow-md border border-base-300" 
+                  : "hover:bg-base-100/60 text-base-content/80"}
               `}
             >
               <UserAvatar
@@ -42,13 +42,13 @@ const Sidebar = () => {
               />
 
               <div className="block md:hidden lg:block min-w-0 flex-1">
-                <div className="font-semibold text-sm truncate text-white">
+                <div className="font-semibold text-sm truncate text-base-content">
                   {user.isDeletedAccount ? "Deleted User" : user.fullName}
                 </div>
                 {user.isDeletedAccount ? (
-                  <div className="text-xs text-zinc-500 truncate">Account Deleted</div>
+                  <div className="text-xs text-base-content/50 truncate">Account Deleted</div>
                 ) : (
-                  <div className="text-xs text-zinc-400 truncate mt-0.5 font-mono">
+                  <div className="text-xs text-base-content/60 truncate mt-0.5 font-mono">
                     @{user.username || "user"}
                   </div>
                 )}
@@ -58,9 +58,7 @@ const Sidebar = () => {
         })}
 
         {users.length === 0 && (
-          <div className="text-center text-zinc-500 py-10 px-2">
-            <p className="text-xs">No friends added yet</p>
-          </div>
+          <div className="text-center text-base-content/50 py-8 text-sm">No friends online</div>
         )}
       </div>
     </div>
