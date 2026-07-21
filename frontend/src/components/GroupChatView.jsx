@@ -1,18 +1,25 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useGroupStore } from "../store/useGroupStore";
 import { useAuthStore } from "../store/useAuthStore";
-import { ArrowLeft, UserPlus, Send, Copy, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Send, Copy, ShieldAlert, Info, KeyRound } from "lucide-react";
 import { toast } from "react-hot-toast";
+import GroupInfoPanel from "./GroupInfoPanel";
 
 const GroupChatView = () => {
-    const { selectedGroup, setSelectedGroup, groupMessages, sendGroupMessage, approveRequest } = useGroupStore();
+    const { selectedGroup, setSelectedGroup, groupMessages, sendGroupMessage, approveRequest, setGroupInfoOpen, isGroupInfoOpen, requestGroupKey } = useGroupStore();
     const { authUser } = useAuthStore();
     const [text, setText] = useState("");
+    const messagesEndRef = useRef(null);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [groupMessages, selectedGroup?._id]);
 
     if (!selectedGroup) return null;
 
     const messages = groupMessages[selectedGroup._id] || [];
-    const isAdmin = selectedGroup.admins.includes(authUser?._id);
+    const isAdmin = selectedGroup.admins?.includes(authUser?._id);
+    const isPendingKey = selectedGroup.name === "Encrypted Group";
 
     const handleSend = (e) => {
         e.preventDefault();
@@ -35,15 +42,43 @@ const GroupChatView = () => {
                     <button onClick={() => setSelectedGroup(null)} className="md:hidden btn btn-sm btn-ghost btn-circle">
                         <ArrowLeft className="w-5 h-5" />
                     </button>
-                    <div>
-                        <h3 className="font-bold text-sm sm:text-base">{selectedGroup.name}</h3>
-                        <p className="text-xs text-zinc-500">{selectedGroup.members.length} members</p>
+                    <div
+                        className="flex items-center gap-3 cursor-pointer group"
+                        onClick={() => setGroupInfoOpen(true)}
+                        title="View Group Info"
+                    >
+                        {selectedGroup.groupPic ? (
+                            <img
+                                src={selectedGroup.groupPic}
+                                alt={selectedGroup.name}
+                                className="w-10 h-10 rounded-full object-cover ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all"
+                            />
+                        ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-sm font-bold text-primary ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
+                                {selectedGroup.name.substring(0, 2).toUpperCase()}
+                            </div>
+                        )}
+                        <div>
+                            <h3 className="font-bold text-sm sm:text-base group-hover:text-primary transition-colors">
+                                {selectedGroup.name}
+                            </h3>
+                            <p className="text-xs text-zinc-500">
+                                {isPendingKey ? (
+                                    <span className="text-amber-500">⚠ Key exchange pending</span>
+                                ) : (
+                                    `${selectedGroup.members?.length || 0} members`
+                                )}
+                            </p>
+                        </div>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <button onClick={handleCopyInvite} className="btn btn-sm btn-outline flex items-center gap-1.5" title="Copy Invite Link">
                         <Copy className="w-4 h-4" />
-                        <span className="hidden sm:inline">Invite Link</span>
+                        <span className="hidden sm:inline">Invite</span>
+                    </button>
+                    <button onClick={() => setGroupInfoOpen(true)} className="btn btn-sm btn-ghost btn-circle" title="Group Info">
+                        <Info className="w-4 h-4" />
                     </button>
                 </div>
             </div>
@@ -71,11 +106,31 @@ const GroupChatView = () => {
                 </div>
             )}
 
+            {/* Key Exchange Warning Banner */}
+            {isPendingKey && (
+                <div className="shrink-0 bg-warning/10 border-b border-warning/20 p-4 flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-2 text-warning text-sm font-semibold">
+                        <KeyRound className="w-4 h-4" />
+                        Encryption key not yet received
+                    </div>
+                    <p className="text-xs text-zinc-500 text-center max-w-sm">
+                        You cannot send or read messages until an admin shares the encryption key. Make sure a group admin is online.
+                    </p>
+                    <button
+                        onClick={() => requestGroupKey(selectedGroup._id)}
+                        className="btn btn-xs btn-warning gap-1"
+                    >
+                        <KeyRound className="w-3 h-3" />
+                        Request Key
+                    </button>
+                </div>
+            )}
+
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-                {messages.map((message) => {
+                {!isPendingKey && messages.map((message) => {
                     const isMe = message.senderId === authUser?._id;
-                    const sender = selectedGroup.members.find(m => m._id === message.senderId);
+                    const sender = selectedGroup.members?.find(m => m._id === message.senderId);
                     return (
                         <div key={message._id} className={`chat ${isMe ? "chat-end" : "chat-start"}`}>
                             <div className="chat-header text-xs opacity-60 mb-0.5">
@@ -90,11 +145,12 @@ const GroupChatView = () => {
                         </div>
                     );
                 })}
-                {messages.length === 0 && (
+                {!isPendingKey && messages.length === 0 && (
                     <div className="text-center text-zinc-500 py-12 text-sm">
                         No messages yet. Say hello!
                     </div>
                 )}
+                <div ref={messagesEndRef} />
             </div>
 
             {/* Input Form */}
@@ -103,13 +159,17 @@ const GroupChatView = () => {
                     type="text"
                     value={text}
                     onChange={(e) => setText(e.target.value)}
-                    placeholder="Type encrypted message..."
+                    placeholder={isPendingKey ? "Waiting for encryption key..." : "Type encrypted message..."}
                     className="input input-bordered flex-1"
+                    disabled={isPendingKey}
                 />
-                <button type="submit" className="btn btn-primary btn-circle">
+                <button type="submit" className="btn btn-primary btn-circle" disabled={isPendingKey}>
                     <Send className="w-4 h-4" />
                 </button>
             </form>
+
+            {/* Group Info Panel */}
+            <GroupInfoPanel />
         </div>
     );
 };

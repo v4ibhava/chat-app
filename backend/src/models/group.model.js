@@ -14,6 +14,10 @@ const groupSchema = new mongoose.Schema(
             type: String,
             default: "",
         },
+        groupPic: {
+            type: String,
+            default: "",
+        },
         iv: {
             type: String,
             required: true,

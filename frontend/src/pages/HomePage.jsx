@@ -80,12 +80,22 @@ const HomePage = () => {
                           onClick={() => { setSelectedGroup(group); setSelectedUser(null); }}
                           className={`w-full p-3 flex items-center gap-3 rounded-xl hover:bg-base-200 transition-all ${selectedGroup?._id === group._id ? "bg-base-200 ring-1 ring-primary/30" : ""}`}
                         >
-                          <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
-                            {group.name.substring(0, 2).toUpperCase()}
-                          </div>
+                          {group.groupPic ? (
+                            <img
+                              src={group.groupPic}
+                              alt={group.name}
+                              className="size-10 rounded-full object-cover ring-2 ring-base-300 shrink-0"
+                            />
+                          ) : (
+                            <div className="size-10 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-primary font-bold shrink-0">
+                              {group.name.substring(0, 2).toUpperCase()}
+                            </div>
+                          )}
                           <div className="text-left min-w-0 flex-1">
                             <div className="font-semibold text-sm truncate">{group.name}</div>
-                            <div className="text-xs text-zinc-500 truncate">{group.desc}</div>
+                            <div className={`text-xs truncate ${group.name === "Encrypted Group" ? "text-amber-500" : "text-zinc-500"}`}>
+                              {group.desc}
+                            </div>
                           </div>
                         </button>
                       ))}

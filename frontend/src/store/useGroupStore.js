@@ -56,11 +56,23 @@ const getGroupKeyLocal = async (groupId) => {
     });
 };
 
+const deleteGroupKeyLocal = async (groupId) => {
+    const db = await initGroupKeyDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(GROUP_KEY_STORE, "readwrite");
+        const store = transaction.objectStore(GROUP_KEY_STORE);
+        store.delete(groupId);
+        transaction.oncomplete = () => resolve(true);
+        transaction.onerror = (e) => reject(e.target.error);
+    });
+};
+
 export const useGroupStore = create((set, get) => ({
     groups: [],
     selectedGroup: null,
     groupMessages: {}, // { groupId: [messages] }
     isGroupsLoading: false,
+    isGroupInfoOpen: false,
 
     getGroups: async () => {
         set({ isGroupsLoading: true });
@@ -77,28 +89,37 @@ export const useGroupStore = create((set, get) => ({
                     let localJWK = await getGroupKeyLocal(group._id);
 
                     // If key is missing locally, check if there's an encrypted key on the server we can decrypt
-                    if (!localJWK && group.encryptedKeys && group.encryptedKeys[myId]) {
-                        try {
-                            const encryptedKeyObj = group.encryptedKeys[myId];
-                            const myKeypair = await getLocalKeypair(myId);
-
-                            // Find the admin/sender who created the key from group members list
-                            const creator = group.members.find(m => group.admins.includes(m._id) && m.publicKeyJWK);
-                            if (myKeypair && creator && creator.publicKeyJWK) {
-                                const creatorPub = await importPublicKey(creator.publicKeyJWK);
-                                const sharedKey = await deriveSharedKey(myKeypair.privateKey, creatorPub);
-                                const decrypted = await decryptPayload(encryptedKeyObj.iv, encryptedKeyObj.ciphertext, sharedKey);
-                                
-                                // Accept payload with either groupKeyJWK directly or nested properties
-                                const groupKeyJWK = decrypted.groupKeyJWK || decrypted;
-                                if (groupKeyJWK) {
-                                    await saveGroupKeyLocal(group._id, groupKeyJWK);
-                                    localJWK = groupKeyJWK;
-                                    console.log(`Successfully synced and decrypted offline key for group ${group._id}`);
+                    if (!localJWK && group.encryptedKeys) {
+                        const myEncKey = group.encryptedKeys[myId];
+                        if (myEncKey) {
+                            try {
+                                const myKeypair = await getLocalKeypair(myId);
+                                if (myKeypair) {
+                                    // Try ALL admins' public keys, not just the first one
+                                    const adminsWithKeys = group.members.filter(
+                                        m => group.admins.includes(m._id) && m.publicKeyJWK
+                                    );
+                                    
+                                    for (const admin of adminsWithKeys) {
+                                        try {
+                                            const adminPub = await importPublicKey(admin.publicKeyJWK);
+                                            const sharedKey = await deriveSharedKey(myKeypair.privateKey, adminPub);
+                                            const decrypted = await decryptPayload(myEncKey.iv, myEncKey.ciphertext, sharedKey);
+                                            const groupKeyJWK = decrypted.groupKeyJWK || decrypted;
+                                            if (groupKeyJWK) {
+                                                await saveGroupKeyLocal(group._id, groupKeyJWK);
+                                                localJWK = groupKeyJWK;
+                                                console.log(`Successfully synced offline key for group ${group._id} using admin ${admin._id}`);
+                                                break; // Success — stop trying other admins
+                                            }
+                                        } catch (adminErr) {
+                                            console.warn(`Decrypt with admin ${admin._id} failed, trying next...`);
+                                        }
+                                    }
                                 }
+                            } catch (decryptErr) {
+                                console.error(`Failed to decrypt startup group key for group ${group._id}:`, decryptErr);
                             }
-                        } catch (decryptErr) {
-                            console.error(`Failed to decrypt startup group key for group ${group._id}:`, decryptErr);
                         }
                     }
 
@@ -122,6 +143,15 @@ export const useGroupStore = create((set, get) => ({
                 }
             }
             set({ groups: decryptedGroups });
+
+            // Update selectedGroup if it's in the list
+            const { selectedGroup } = get();
+            if (selectedGroup) {
+                const updated = decryptedGroups.find(g => g._id === selectedGroup._id);
+                if (updated) {
+                    set({ selectedGroup: updated });
+                }
+            }
 
             // Automatically join socket rooms for all retrieved groups
             const socket = useAuthStore.getState().socket;
@@ -204,6 +234,103 @@ export const useGroupStore = create((set, get) => ({
             get().getGroups();
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to create group");
+        }
+    },
+
+    updateGroupName: async (groupId, newName) => {
+        const myId = useAuthStore.getState().authUser?._id;
+        if (!myId) return;
+
+        try {
+            const localJWK = await getGroupKeyLocal(groupId);
+            if (!localJWK) {
+                toast.error("Group key missing. Cannot update name.");
+                return;
+            }
+            const groupKey = await importGroupKey(localJWK);
+            const encrypted = await encryptGroupMetadata(newName, groupKey);
+
+            await axiosInstance.put(`/groups/${groupId}`, {
+                encryptedName: encrypted.ciphertext,
+                iv: encrypted.iv
+            });
+
+            toast.success("Group name updated!");
+            get().getGroups();
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to update group name");
+        }
+    },
+
+    updateGroupAvatar: async (groupId, base64Image) => {
+        try {
+            const res = await axiosInstance.put(`/groups/${groupId}`, {
+                groupPic: base64Image
+            });
+            toast.success("Group avatar updated!");
+            get().getGroups();
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to update avatar");
+        }
+    },
+
+    removeGroupAvatar: async (groupId) => {
+        try {
+            await axiosInstance.put(`/groups/${groupId}`, {
+                removeAvatar: true
+            });
+            toast.success("Group avatar removed!");
+            get().getGroups();
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to remove avatar");
+        }
+    },
+
+    deleteGroup: async (groupId) => {
+        try {
+            await axiosInstance.delete(`/groups/${groupId}`);
+            await deleteGroupKeyLocal(groupId);
+            set({
+                groups: get().groups.filter(g => g._id !== groupId),
+                selectedGroup: null,
+                isGroupInfoOpen: false
+            });
+            toast.success("Group deleted successfully!");
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to delete group");
+        }
+    },
+
+    leaveGroup: async (groupId) => {
+        try {
+            await axiosInstance.post(`/groups/${groupId}/leave`);
+            await deleteGroupKeyLocal(groupId);
+            set({
+                groups: get().groups.filter(g => g._id !== groupId),
+                selectedGroup: null,
+                isGroupInfoOpen: false
+            });
+            toast.success("Left group successfully!");
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to leave group");
+        }
+    },
+
+    removeMember: async (groupId, memberId) => {
+        try {
+            await axiosInstance.post(`/groups/${groupId}/remove-member`, { memberId });
+            toast.success("Member removed!");
+            get().getGroups();
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to remove member");
+        }
+    },
+
+    requestGroupKey: (groupId) => {
+        const socket = useAuthStore.getState().socket;
+        if (socket) {
+            socket.emit("group-key-request", { groupId });
+            toast("Key request sent. Waiting for admin...", { icon: "🔑" });
         }
     },
 
@@ -338,6 +465,27 @@ export const useGroupStore = create((set, get) => ({
                 console.error("Failed to decrypt incoming group message:", err);
             }
         });
+
+        // Real-time group management events
+        socket.on("group-deleted", async ({ groupId }) => {
+            await deleteGroupKeyLocal(groupId).catch(() => {});
+            const { selectedGroup } = get();
+            set({
+                groups: get().groups.filter(g => g._id !== groupId),
+                ...(selectedGroup?._id === groupId ? { selectedGroup: null, isGroupInfoOpen: false } : {})
+            });
+            toast("A group was deleted.", { icon: "🗑️" });
+        });
+
+        socket.on("group-member-update", ({ groupId, group }) => {
+            // Refresh groups to get the updated member list
+            get().getGroups();
+        });
+
+        socket.on("group-metadata-updated", ({ groupId }) => {
+            // Refresh groups to get the updated metadata
+            get().getGroups();
+        });
     },
 
     unsubscribeFromGroupSignals: () => {
@@ -346,6 +494,9 @@ export const useGroupStore = create((set, get) => ({
             socket.off("group-key-exchange");
             socket.off("group-key-request");
             socket.off("group-message");
+            socket.off("group-deleted");
+            socket.off("group-member-update");
+            socket.off("group-metadata-updated");
         }
     },
 
@@ -401,5 +552,6 @@ export const useGroupStore = create((set, get) => ({
         }
     },
 
-    setSelectedGroup: (selectedGroup) => set({ selectedGroup })
+    setSelectedGroup: (selectedGroup) => set({ selectedGroup, isGroupInfoOpen: false }),
+    setGroupInfoOpen: (isOpen) => set({ isGroupInfoOpen: isOpen })
 }));
