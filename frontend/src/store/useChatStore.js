@@ -898,7 +898,6 @@ export const useChatStore = create((set, get) => ({
 
         socket.off("typing");
         socket.off("stop typing");
-        socket.off("offline-messages-deliver");
 
         socket.on("typing", ({ senderId }) => {
             const { selectedUser } = get();
@@ -913,56 +912,6 @@ export const useChatStore = create((set, get) => ({
                 set({ isTyping: false });
             }
         });
-
-        socket.on("offline-messages-deliver", async (offlineMsgs) => {
-            if (!Array.isArray(offlineMsgs) || offlineMsgs.length === 0) return;
-
-            const acknowledgedIds = [];
-            const { selectedUser } = get();
-            const myId = useAuthStore.getState().authUser?._id;
-
-            for (const item of offlineMsgs) {
-                let msg = item.messageData;
-                acknowledgedIds.push(item._id);
-
-                // Decrypt if it is an E2EE package
-                if (msg && msg.isEncrypted) {
-                    try {
-                        const myKeypair = await getLocalKeypair(myId);
-                        const senderUser = get().users.find(u => u._id === item.senderId);
-                        if (myKeypair && senderUser && senderUser.publicKeyJWK) {
-                            const senderPub = await importPublicKey(senderUser.publicKeyJWK);
-                            const sharedKey = await deriveSharedKey(myKeypair.privateKey, senderPub);
-                            msg = await decryptPayload(msg.iv, msg.ciphertext, sharedKey);
-                        } else {
-                            console.error("Missing keys to decrypt offline message");
-                            continue;
-                        }
-                    } catch (decErr) {
-                        console.error("Failed to decrypt offline message:", decErr);
-                        continue;
-                    }
-                }
-
-                await saveLocalMessage(msg);
-
-                if (selectedUser && selectedUser._id === item.senderId) {
-                    const currentMsgs = get().messages;
-                    if (!currentMsgs.some(m => m._id === msg._id)) {
-                        const processedMsg = (msg.fileBlob && msg.fileType && msg.fileType.startsWith("image/"))
-                            ? { ...msg, image: URL.createObjectURL(msg.fileBlob) }
-                            : msg;
-                        set({ messages: [...currentMsgs, processedMsg] });
-                    }
-                } else {
-                    playMessageSound();
-                }
-            }
-
-            if (acknowledgedIds.length > 0) {
-                socket.emit("acknowledge-offline-messages", acknowledgedIds);
-            }
-        });
     },
 
     unSubscribeToMessages: () => {
@@ -970,9 +919,9 @@ export const useChatStore = create((set, get) => ({
         if (socket) {
             socket.off("typing");
             socket.off("stop typing");
-            socket.off("offline-messages-deliver");
         }
     },
+
 
     handleChatSignal: async ({ from, signal }) => {
         const socket = useAuthStore.getState().socket;

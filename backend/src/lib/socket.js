@@ -55,12 +55,23 @@ const deliverOfflineMessages = async (userId, socket) => {
     try {
         const offlineMsgs = await OfflineMessage.find({ receiverId: userId }).sort({ createdAt: 1 });
         if (offlineMsgs.length > 0) {
-            socket.emit("offline-messages-deliver", offlineMsgs.map(m => ({
+            const payload = offlineMsgs.map(m => ({
                 _id: m._id,
                 senderId: m.senderId,
                 receiverId: m.receiverId,
                 messageData: m.messageData
-            })));
+            }));
+
+            // Use Socket.IO acknowledgment callback so messages are only
+            // deleted after the client confirms successful receipt.
+            socket.emit("offline-messages-deliver", payload, async (acknowledgedIds) => {
+                if (!Array.isArray(acknowledgedIds) || acknowledgedIds.length === 0) return;
+                try {
+                    await OfflineMessage.deleteMany({ _id: { $in: acknowledgedIds } });
+                } catch (deleteErr) {
+                    console.error("Error deleting acknowledged offline messages:", deleteErr);
+                }
+            });
         }
     } catch (err) {
         console.error("Error delivering offline messages:", err);
@@ -87,14 +98,8 @@ io.on("connection", (socket) => {
         }
     });
 
-    socket.on("acknowledge-offline-messages", async (messageDbIds) => {
-        if (!Array.isArray(messageDbIds)) return;
-        try {
-            await OfflineMessage.deleteMany({ _id: { $in: messageDbIds } });
-        } catch (err) {
-            console.error("Error deleting acknowledged offline messages:", err);
-        }
-    });
+
+
 
     socket.on("typing", async ({ receiverId }) => {
         if (!userId) return;

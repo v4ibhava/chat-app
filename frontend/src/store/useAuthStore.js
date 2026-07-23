@@ -374,6 +374,68 @@ export const useAuthStore = create((set, get) => ({
                 useChatStore.setState({ messages: chatStore.messages.filter(m => m._id !== messageId) });
             }
         });
+
+        // Handle offline messages globally so they are received even if no
+        // chat panel is open. The server's emit includes an ack callback —
+        // we call it with the IDs we successfully processed so the server
+        // knows it is safe to delete them from the database.
+        socket.on("offline-messages-deliver", async (offlineMsgs, ack) => {
+            if (!Array.isArray(offlineMsgs) || offlineMsgs.length === 0) {
+                if (typeof ack === "function") ack([]);
+                return;
+            }
+
+            const acknowledgedIds = [];
+            const myId = get().authUser?._id;
+
+            for (const item of offlineMsgs) {
+                let msg = item.messageData;
+
+                // Decrypt if it is an E2EE package
+                if (msg && msg.isEncrypted) {
+                    try {
+                        const myKeypair = await getLocalKeypair(myId);
+                        const chatStore = useChatStore.getState();
+                        const senderUser = chatStore.users.find(u => u._id === item.senderId);
+                        if (myKeypair && senderUser && senderUser.publicKeyJWK) {
+                            const senderPub = await importPublicKey(senderUser.publicKeyJWK);
+                            const sharedKey = await deriveSharedKey(myKeypair.privateKey, senderPub);
+                            msg = await decryptPayload(msg.iv, msg.ciphertext, sharedKey);
+                        } else {
+                            console.error("Missing keys to decrypt offline message");
+                            continue;
+                        }
+                    } catch (decErr) {
+                        console.error("Failed to decrypt offline message:", decErr);
+                        continue;
+                    }
+                }
+
+                await saveLocalMessage(msg);
+                acknowledgedIds.push(item._id);
+
+                const chatStore = useChatStore.getState();
+                const { selectedUser } = chatStore;
+
+                if (selectedUser && selectedUser._id === item.senderId) {
+                    const currentMsgs = chatStore.messages;
+                    if (!currentMsgs.some(m => m._id === msg._id)) {
+                        const processedMsg = (msg.fileBlob && msg.fileType && msg.fileType.startsWith("image/"))
+                            ? { ...msg, image: URL.createObjectURL(msg.fileBlob) }
+                            : msg;
+                        useChatStore.setState({ messages: [...currentMsgs, processedMsg] });
+                    }
+                } else {
+                    playMessageSound();
+                }
+            }
+
+            // Acknowledge successfully processed messages so the server can
+            // safely delete them from the pending queue.
+            if (typeof ack === "function") {
+                ack(acknowledgedIds);
+            }
+        });
     },
     disconnectSocket: () => {
         const socket = get().socket;
