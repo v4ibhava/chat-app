@@ -3,6 +3,7 @@ import http from "http";
 import express from "express";
 import User from "../models/user.model.js";
 import OfflineMessage from "../models/offlineMessage.model.js";
+import Message from "../models/message.model.js";
 import GroupMessage from "../models/groupMessage.model.js";
 import Group from "../models/group.model.js";
 
@@ -54,22 +55,51 @@ const updateLastSeen = async (userId) => {
 const deliverOfflineMessages = async (userId, socket) => {
     try {
         const offlineMsgs = await OfflineMessage.find({ receiverId: userId }).sort({ createdAt: 1 });
-        if (offlineMsgs.length > 0) {
-            const payload = offlineMsgs.map(m => ({
-                _id: m._id,
-                senderId: m.senderId,
-                receiverId: m.receiverId,
-                messageData: m.messageData
-            }));
+        const dbMsgs = await Message.find({ receiverId: userId, status: "sent" }).sort({ createdAt: 1 });
+        
+        const combined = [...offlineMsgs.map(m => ({
+            _id: m._id,
+            senderId: m.senderId.toString(),
+            receiverId: m.receiverId.toString(),
+            messageData: m.messageData
+        }))];
 
-            // Use Socket.IO acknowledgment callback so messages are only
-            // deleted after the client confirms successful receipt.
-            socket.emit("offline-messages-deliver", payload, async (acknowledgedIds) => {
+        for (const m of dbMsgs) {
+            if (!combined.some(c => c.messageData?._id === m.messageData?._id)) {
+                combined.push({
+                    _id: m._id.toString(),
+                    senderId: m.senderId.toString(),
+                    receiverId: m.receiverId.toString(),
+                    messageData: { ...m.messageData, status: "delivered" }
+                });
+            }
+        }
+
+        if (combined.length > 0) {
+            socket.emit("offline-messages-deliver", combined, async (acknowledgedIds) => {
                 if (!Array.isArray(acknowledgedIds) || acknowledgedIds.length === 0) return;
                 try {
                     await OfflineMessage.deleteMany({ _id: { $in: acknowledgedIds } });
+                    await Message.updateMany(
+                        { _id: { $in: acknowledgedIds } },
+                        { status: "delivered", deliveredAt: new Date() }
+                    );
+
+                    // Notify online senders that their offline messages were delivered
+                    for (const item of combined) {
+                        if (acknowledgedIds.includes(item._id)) {
+                            const senderSocketId = getReceiverSocketId(item.senderId);
+                            if (senderSocketId) {
+                                io.to(senderSocketId).emit("message-status-update", {
+                                    messageId: item.messageData?._id || item._id,
+                                    dbId: item._id,
+                                    status: "delivered"
+                                });
+                            }
+                        }
+                    }
                 } catch (deleteErr) {
-                    console.error("Error deleting acknowledged offline messages:", deleteErr);
+                    console.error("Error updating acknowledged offline messages:", deleteErr);
                 }
             });
         }
@@ -209,18 +239,37 @@ io.on("connection", (socket) => {
         try {
             const user = await User.findById(userId);
             if (user && user.friends?.some(f => f.toString() === to?.toString())) {
+                const initialStatus = getReceiverSocketId(to) ? "delivered" : "sent";
+
+                // 1. ALWAYS persist message to MongoDB first
+                const savedMsg = await Message.create({
+                    senderId: userId,
+                    receiverId: to,
+                    messageData: { ...message, status: "sent" },
+                    status: "sent",
+                });
+
+                // Send immediate ACK to sender that message is saved on server (Single Tick ✓)
+                socket.emit("message-sent-ack", {
+                    tempId: message._id,
+                    realId: savedMsg._id.toString(),
+                    status: "sent",
+                    createdAt: savedMsg.createdAt.toISOString()
+                });
+
                 const receiverSocketId = getReceiverSocketId(to);
                 if (receiverSocketId) {
+                    // Receiver is online -> deliver live message
                     io.to(receiverSocketId).emit("chat-fallback-message", {
                         from: userId,
-                        message
+                        message: { ...message, status: "delivered" }
                     });
                 } else {
-                    // Recipient is offline, store temporarily on server
+                    // Recipient is offline -> store in OfflineMessage fallback queue as well
                     await OfflineMessage.create({
                         senderId: userId,
                         receiverId: to,
-                        messageData: message
+                        messageData: { ...message, status: "sent" }
                     });
                 }
             } else {
@@ -228,6 +277,48 @@ io.on("connection", (socket) => {
             }
         } catch (err) {
             console.error("Error in chat-fallback-message check:", err);
+        }
+    });
+
+    socket.on("message-delivered", async ({ messageId, senderId }) => {
+        if (!userId || !messageId) return;
+        try {
+            await Message.updateOne(
+                { $or: [{ _id: messageId }, { "messageData._id": messageId }] },
+                { status: "delivered", deliveredAt: new Date() }
+            );
+
+            const senderSocketId = getReceiverSocketId(senderId);
+            if (senderSocketId) {
+                io.to(senderSocketId).emit("message-status-update", {
+                    messageId,
+                    senderId,
+                    status: "delivered"
+                });
+            }
+        } catch (err) {
+            console.error("Error handling message-delivered ACK:", err);
+        }
+    });
+
+    socket.on("mark-messages-seen", async ({ friendId }) => {
+        if (!userId || !friendId) return;
+        try {
+            await Message.updateMany(
+                { senderId: friendId, receiverId: userId, status: { $ne: "seen" } },
+                { status: "seen", seenAt: new Date() }
+            );
+
+            const senderSocketId = getReceiverSocketId(friendId);
+            if (senderSocketId) {
+                io.to(senderSocketId).emit("message-status-update", {
+                    senderId: friendId,
+                    receiverId: userId,
+                    status: "seen"
+                });
+            }
+        } catch (err) {
+            console.error("Error handling mark-messages-seen:", err);
         }
     });
 

@@ -7,7 +7,7 @@ import { useGroupStore } from "./useGroupStore.js";
 import { playMessageSound } from "../lib/sounds.js";
 import { showNewMessageNotification } from "../lib/notifications.jsx";
 import { getLocalKeypair, saveLocalKeypair, generateE2EEKeypair, decryptPayload, importPublicKey, deriveSharedKey } from "../lib/crypto.js";
-import { saveLocalMessage, deleteLocalMessage, saveLocalProfilePic, getLocalProfilePic } from "../lib/db.js";
+import { saveLocalMessage, deleteLocalMessage, saveLocalProfilePic, getLocalProfilePic, updateLocalMessageStatus } from "../lib/db.js";
 
 
 const rawBaseUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.MODE === "development" ? "http://localhost:5000" : "/");
@@ -380,6 +380,8 @@ export const useAuthStore = create((set, get) => ({
             await saveLocalMessage(msg);
             playMessageSound();
 
+            socket.emit("message-delivered", { messageId: msg._id, senderId: from });
+
             if (!chatStore.selectedUser || chatStore.selectedUser._id !== from) {
                 const sender = chatStore.users.find(u => u._id === from);
                 showNewMessageNotification(
@@ -398,6 +400,7 @@ export const useAuthStore = create((set, get) => ({
                         : msg;
                     useChatStore.setState({ messages: [...currentMsgs, processedMsg] });
                 }
+                socket.emit("mark-messages-seen", { friendId: from });
             }
         });
 
@@ -478,6 +481,29 @@ export const useAuthStore = create((set, get) => ({
             // safely delete them from the pending queue.
             if (typeof ack === "function") {
                 ack(acknowledgedIds);
+            }
+        });
+
+        socket.on("message-sent-ack", async (payload) => {
+            const { tempId, realId, status } = payload;
+            await updateLocalMessageStatus(tempId, status);
+            useChatStore.setState(state => ({
+                messages: state.messages.map(m => (m._id === tempId || m._id === realId) ? { ...m, _id: realId || tempId, status: status || "sent" } : m)
+            }));
+        });
+
+        socket.on("message-status-update", async (payload) => {
+            const { messageId, senderId, friendId, status } = payload;
+            if (messageId) {
+                await updateLocalMessageStatus(messageId, status);
+                useChatStore.setState(state => ({
+                    messages: state.messages.map(m => m._id === messageId ? { ...m, status } : m)
+                }));
+            } else if (friendId || senderId) {
+                const targetFriend = friendId || senderId;
+                useChatStore.setState(state => ({
+                    messages: state.messages.map(m => m.receiverId === targetFriend ? { ...m, status } : m)
+                }));
             }
         });
     },

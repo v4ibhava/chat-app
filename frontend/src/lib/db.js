@@ -59,6 +59,28 @@ export const saveLocalMessage = async (msg) => {
   });
 };
 
+export const updateLocalMessageStatus = async (messageId, status) => {
+  if (!messageId || !status) return null;
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const getReq = store.get(messageId);
+    getReq.onsuccess = (e) => {
+      const msg = e.target.result;
+      if (msg) {
+        msg.status = status;
+        const putReq = store.put(msg);
+        putReq.onsuccess = () => resolve(msg);
+        putReq.onerror = (err) => reject(err.target.error);
+      } else {
+        resolve(null);
+      }
+    };
+    getReq.onerror = (err) => reject(err.target.error);
+  });
+};
+
 export const deleteLocalMessage = async (id) => {
   const db = await initDB();
   return new Promise((resolve, reject) => {

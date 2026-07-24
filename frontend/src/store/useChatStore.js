@@ -116,12 +116,25 @@ export const useChatStore = create((set, get) => ({
 
             set({ messages: processedMsgs });
 
+            // Mark messages from friend as seen
+            const socket = useAuthStore.getState().socket;
+            if (socket) {
+                socket.emit("mark-messages-seen", { friendId });
+            }
+
             // Connect P2P WebRTC
             get().connectToPeer(friendId);
         } catch (error) {
             console.error("error loading local messages: ", error);
         } finally {
             set({ isMessagesLoading: false });
+        }
+    },
+
+    markAsSeen: (friendId) => {
+        const socket = useAuthStore.getState().socket;
+        if (socket && friendId) {
+            socket.emit("mark-messages-seen", { friendId });
         }
     },
 
@@ -760,6 +773,7 @@ export const useChatStore = create((set, get) => ({
             receiverId: friendId,
             text: messageData.text,
             image: messageData.image,
+            status: "sending",
             createdAt
         };
 

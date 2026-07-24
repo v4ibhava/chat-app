@@ -4,7 +4,7 @@ import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
-import { Trash2, X, MoreVertical } from "lucide-react";
+import { Trash2, X, MoreVertical, Check, CheckCheck, Clock } from "lucide-react";
 import { DEFAULT_AVATAR } from "../constants";
 
 const ChatContainer = () => {
@@ -40,6 +40,19 @@ const ChatContainer = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isTyping, fileProgress]);
+
+  const renderStatusTicks = (status) => {
+    if (status === "sending") {
+      return <Clock className="size-3 text-zinc-400 animate-pulse inline-block" title="Sending..." />;
+    }
+    if (status === "seen") {
+      return <CheckCheck className="size-3.5 text-sky-400 inline-block" title="Seen" />;
+    }
+    if (status === "delivered") {
+      return <CheckCheck className="size-3.5 text-zinc-300 inline-block" title="Delivered" />;
+    }
+    return <Check className="size-3.5 text-zinc-400 inline-block" title="Sent" />;
+  };
 
   // Touch Long-Press Handlers
   const handleTouchStart = (messageId) => {
@@ -98,8 +111,9 @@ const ChatContainer = () => {
                   </div>
                 ) : (
                   <>
-                    <div className='text-zinc-500 text-[10px] mb-0.5 px-1'>
-                      {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
+                    <div className='text-zinc-500 text-[10px] mb-0.5 px-1 flex items-center gap-1'>
+                      <span>{message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}</span>
+                      {isMe && renderStatusTicks(message.status)}
                     </div>
                     {message.image ? (
                       <div className="flex flex-col gap-1">
