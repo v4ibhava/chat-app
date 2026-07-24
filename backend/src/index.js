@@ -7,7 +7,7 @@ import groupRoutes from "./routes/group.routes.js";
 import {connectDB} from "./lib/db.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import { app, server } from "./lib/socket.js";
+import { app, server, runGlobalPendingSync } from "./lib/socket.js";
 import path from "path";
 import helmet from "helmet";
 import mongoSanitize from "express-mongo-sanitize";
@@ -113,4 +113,5 @@ server.listen(PORT, async () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`📝 Environment: ${process.env.NODE_ENV || "development"}`);
   await connectDB();
+  await runGlobalPendingSync();
 });

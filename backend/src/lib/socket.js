@@ -526,4 +526,28 @@ io.on("connection", (socket) => {
     });
 });
 
+export const runGlobalPendingSync = async () => {
+    try {
+        const pendingReceivers = await OfflineMessage.distinct("receiverId");
+        const dbPendingReceivers = await Message.distinct("receiverId", { status: "sent" });
+        const allReceivers = Array.from(new Set([
+            ...pendingReceivers.map(r => r.toString()),
+            ...dbPendingReceivers.map(r => r.toString())
+        ]));
+
+        for (const receiverId of allReceivers) {
+            const socketId = getReceiverSocketId(receiverId);
+            if (socketId) {
+                const targetSocket = io.sockets.sockets.get(socketId);
+                if (targetSocket) {
+                    await deliverOfflineMessages(receiverId, targetSocket);
+                }
+            }
+        }
+        console.log("⚡ Global pending messages sync routine completed successfully.");
+    } catch (err) {
+        console.error("Error in global pending messages sync routine:", err);
+    }
+};
+
 export { io, app, server };
