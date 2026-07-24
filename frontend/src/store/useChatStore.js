@@ -782,6 +782,9 @@ export const useChatStore = create((set, get) => ({
                 }
 
                 const myKeypair = await getLocalKeypair(myId);
+                const authUser = useAuthStore.getState().authUser;
+                const senderPublicKeyJWK = myKeypair?.publicKeyJWK || authUser?.publicKeyJWK;
+
                 if (!myKeypair) {
                     console.error("Local private key missing. Sending plaintext fallback.");
                     socket.emit("chat-fallback-message", {
@@ -801,7 +804,8 @@ export const useChatStore = create((set, get) => ({
                         isEncrypted: true,
                         iv: encrypted.iv,
                         ciphertext: encrypted.ciphertext,
-                        senderId: myId
+                        senderId: myId,
+                        senderPublicKeyJWK
                     }
                 });
             } catch (e) {

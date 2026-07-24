@@ -40,6 +40,7 @@ export const useAuthStore = create((set, get) => ({
             }
             set({ authUser: user });
             await get().checkAndPublishE2EEKeys();
+            await useChatStore.getState().getUsers();
             get().connectSocket();
 
             if (user && !user.profilePic && get().socket) {
@@ -83,6 +84,7 @@ export const useAuthStore = create((set, get) => ({
             const res = await axiosInstance.post("/auth/signup", data);
             set({ authUser: res.data });
             await get().checkAndPublishE2EEKeys();
+            await useChatStore.getState().getUsers();
             get().connectSocket();
             return { success: true };
         } catch (error) {
@@ -98,6 +100,7 @@ export const useAuthStore = create((set, get) => ({
             const res = await axiosInstance.post("/auth/login", data);
             set({ authUser: res.data });
             await get().checkAndPublishE2EEKeys();
+            await useChatStore.getState().getUsers();
             get().connectSocket();
             return { success: true };
         } catch (error) {
@@ -321,7 +324,7 @@ export const useAuthStore = create((set, get) => ({
 
         socket.on("chat-fallback-message", async (payload) => {
             const { from, message } = payload;
-            const chatStore = useChatStore.getState();
+            let chatStore = useChatStore.getState();
             let msg = message;
 
             if (message && message.isEncrypted) {
@@ -329,12 +332,21 @@ export const useAuthStore = create((set, get) => ({
                     const myId = useAuthStore.getState().authUser?._id;
                     const myKeypair = await getLocalKeypair(myId);
                     
-                    // Retrieve sender's public key from friend list
-                    const senderUser = chatStore.users.find(u => u._id === from);
-                    if (myKeypair && senderUser && senderUser.publicKeyJWK) {
-                        const senderPub = await importPublicKey(senderUser.publicKeyJWK);
+                    let senderUser = chatStore.users.find(u => u._id === from);
+                    if (!senderUser || !senderUser.publicKeyJWK) {
+                        await chatStore.getUsers();
+                        chatStore = useChatStore.getState();
+                        senderUser = chatStore.users.find(u => u._id === from);
+                    }
+
+                    const pubKey = message.senderPublicKeyJWK || senderUser?.publicKeyJWK;
+                    if (myKeypair && pubKey) {
+                        const senderPub = await importPublicKey(pubKey);
                         const sharedKey = await deriveSharedKey(myKeypair.privateKey, senderPub);
                         msg = await decryptPayload(message.iv, message.ciphertext, sharedKey);
+                    } else {
+                        console.error("Missing keys to decrypt live fallback message");
+                        return;
                     }
                 } catch (decErr) {
                     console.error("Failed to decrypt live fallback message:", decErr);
@@ -395,14 +407,23 @@ export const useAuthStore = create((set, get) => ({
                 if (msg && msg.isEncrypted) {
                     try {
                         const myKeypair = await getLocalKeypair(myId);
-                        const chatStore = useChatStore.getState();
-                        const senderUser = chatStore.users.find(u => u._id === item.senderId);
-                        if (myKeypair && senderUser && senderUser.publicKeyJWK) {
-                            const senderPub = await importPublicKey(senderUser.publicKeyJWK);
+                        let chatStore = useChatStore.getState();
+                        let senderUser = chatStore.users.find(u => u._id === item.senderId);
+
+                        if (!senderUser || !senderUser.publicKeyJWK) {
+                            await chatStore.getUsers();
+                            chatStore = useChatStore.getState();
+                            senderUser = chatStore.users.find(u => u._id === item.senderId);
+                        }
+
+                        const pubKey = msg.senderPublicKeyJWK || senderUser?.publicKeyJWK;
+
+                        if (myKeypair && pubKey) {
+                            const senderPub = await importPublicKey(pubKey);
                             const sharedKey = await deriveSharedKey(myKeypair.privateKey, senderPub);
                             msg = await decryptPayload(msg.iv, msg.ciphertext, sharedKey);
                         } else {
-                            console.error("Missing keys to decrypt offline message");
+                            console.error("Missing keys to decrypt offline message from sender:", item.senderId);
                             continue;
                         }
                     } catch (decErr) {
