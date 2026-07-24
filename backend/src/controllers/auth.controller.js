@@ -44,7 +44,7 @@ export const signup = async (req, res) => {
         })
         if (newUser) {
             // generate jwt token 
-            generateToken(newUser._id, res)
+            const token = generateToken(newUser._id, res);
             await newUser.save();
 
             // Send welcome email asynchronously so it doesn't block the response
@@ -59,6 +59,7 @@ export const signup = async (req, res) => {
                 username: newUser.username,
                 profilePic: newUser.profilePic,
                 createdAt: newUser.createdAt,
+                token,
             })
         } else {
             res.status(400).json({ message: "Invalid user data" })
@@ -82,7 +83,7 @@ export const login = async (req, res) => {
         if (!isPasswordCorrect) {
             return res.status(400).json({ message: "Invalid credentials" })
         }
-        generateToken(user._id, res)
+        const token = generateToken(user._id, res);
         
         // Trigger login notification email asynchronously
         const userAgent = req.headers["user-agent"] || "Unknown Device";
@@ -99,6 +100,7 @@ export const login = async (req, res) => {
             username: user.username,
             profilePic: user.profilePic,
             createdAt: user.createdAt,
+            token,
         })
     } catch (error) {
         console.log("Error in login controller", error.message);

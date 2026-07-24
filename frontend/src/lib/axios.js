@@ -8,4 +8,12 @@ const cleanBackendUrl = backendUrl
 export const axiosInstance = axios.create({
     baseURL: cleanBackendUrl ? `${cleanBackendUrl}/api` : "/api",
     withCredentials: true,
-})
+});
+
+axiosInstance.interceptors.request.use((config) => {
+    const token = localStorage.getItem("zync_token");
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});

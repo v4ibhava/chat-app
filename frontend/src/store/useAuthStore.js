@@ -28,9 +28,9 @@ export const useAuthStore = create((set, get) => ({
             let user = res.data;
             if (user?._id) {
                 if (user.profilePic) {
-                    await saveLocalProfilePic(user._id, user.profilePic);
+                    await saveLocalProfilePic(user._id, user.profilePic).catch(() => {});
                 } else {
-                    const localPic = await getLocalProfilePic(user._id);
+                    const localPic = await getLocalProfilePic(user._id).catch(() => null);
                     if (localPic) {
                         console.log("Restoring local profile picture from IndexedDB...");
                         user = { ...user, profilePic: localPic };
@@ -39,15 +39,30 @@ export const useAuthStore = create((set, get) => ({
                 }
             }
             set({ authUser: user });
-            await get().checkAndPublishE2EEKeys();
-            await useChatStore.getState().getUsers();
-            get().connectSocket();
+
+            // Post-auth tasks in isolated try/catches so non-critical errors don't cause logout
+            try {
+                await get().checkAndPublishE2EEKeys();
+            } catch (e) {
+                console.error("E2EE key check error in checkAuth:", e);
+            }
+            try {
+                await useChatStore.getState().getUsers();
+            } catch (e) {
+                console.error("getUsers error in checkAuth:", e);
+            }
+            try {
+                get().connectSocket();
+            } catch (e) {
+                console.error("connectSocket error in checkAuth:", e);
+            }
 
             if (user && !user.profilePic && get().socket) {
                 get().socket.emit("request-profile-backup", { targetUserId: user._id });
             }
         } catch (error) {
             console.log("error in checkAuth: ", error);
+            localStorage.removeItem("zync_token");
             set({ authUser: null });
         } finally {
             set({ isCheckingAuth: false });
@@ -82,9 +97,12 @@ export const useAuthStore = create((set, get) => ({
         set({ isSignUp: true });
         try {
             const res = await axiosInstance.post("/auth/signup", data);
+            if (res.data?.token) {
+                localStorage.setItem("zync_token", res.data.token);
+            }
             set({ authUser: res.data });
-            await get().checkAndPublishE2EEKeys();
-            await useChatStore.getState().getUsers();
+            try { await get().checkAndPublishE2EEKeys(); } catch (e) {}
+            try { await useChatStore.getState().getUsers(); } catch (e) {}
             get().connectSocket();
             return { success: true };
         } catch (error) {
@@ -98,9 +116,12 @@ export const useAuthStore = create((set, get) => ({
         set({ isLoggingIn: true });
         try {
             const res = await axiosInstance.post("/auth/login", data);
+            if (res.data?.token) {
+                localStorage.setItem("zync_token", res.data.token);
+            }
             set({ authUser: res.data });
-            await get().checkAndPublishE2EEKeys();
-            await useChatStore.getState().getUsers();
+            try { await get().checkAndPublishE2EEKeys(); } catch (e) {}
+            try { await useChatStore.getState().getUsers(); } catch (e) {}
             get().connectSocket();
             return { success: true };
         } catch (error) {
@@ -113,11 +134,13 @@ export const useAuthStore = create((set, get) => ({
     logout: async () => {
         try {
             await axiosInstance.post("/auth/logout");
+        } catch (error) {
+            console.error("Error during logout request:", error);
+        } finally {
+            localStorage.removeItem("zync_token");
             set({ authUser: null });
             toast.success("Logged out successfully!");
             get().disconnectSocket();
-        } catch (error) {
-            toast.error(error.response?.data?.message || "Logout failed");
         }
     },
     updateProfile: async (data) => {
@@ -468,6 +491,7 @@ export const useAuthStore = create((set, get) => ({
     deleteAccount: async () => {
         try {
             await axiosInstance.delete("/auth/delete-account");
+            localStorage.removeItem("zync_token");
             set({ authUser: null });
             get().disconnectSocket();
             toast.success("Account permanently deleted!");
