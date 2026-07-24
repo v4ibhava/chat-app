@@ -53,15 +53,19 @@ app.use(mongoSanitize());
 // Custom wrapper for xss-clean to prevent regex stack overflow on base64 image strings
 const xssMiddleware = xss();
 app.use((req, res, next) => {
-  if (req.body && req.body.profilePic) {
+  if (req.body) {
     const tempPic = req.body.profilePic;
+    const tempImg = req.body.image;
     delete req.body.profilePic;
+    delete req.body.image;
+    
     xssMiddleware(req, res, () => {
-      req.body.profilePic = tempPic;
+      if (tempPic !== undefined) req.body.profilePic = tempPic;
+      if (tempImg !== undefined) req.body.image = tempImg;
       next();
     });
   } else {
-    xssMiddleware(req, res, next);
+    next();
   }
 });
 

@@ -128,7 +128,11 @@ export const logout = (req, res) => {
 export const updateProfile = async (req, res) => {
     try {
         const { profilePic, fullName, email, username, showLastSeen, notificationsEnabled } = req.body;
-        const userId = req.user._id;
+        const userId = req.user?._id;
+
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized ~ User session missing" });
+        }
         
         const updates = {};
 
@@ -231,8 +235,11 @@ export const updateProfile = async (req, res) => {
 
         res.status(200).json(updatedUser);
     } catch (error) {
-        console.log("Error in update profile:", error);
-        res.status(500).json({ message: error.message || "Failed to update profile" });
+        console.error("Error in update profile:", error);
+        if (error.code === 11000) {
+            return res.status(400).json({ message: "Username or email is already in use." });
+        }
+        res.status(400).json({ message: error.message || "Failed to update profile" });
     }
 }
 
