@@ -1,17 +1,24 @@
 import express from "express";
+import mongoose from "mongoose";
 import { protectRoute } from "../middleware/auth.middleware.js";
+import { apiLimiter } from "../middleware/rateLimit.middleware.js";
 import User from "../models/user.model.js";
 import { io, getReceiverSocketId } from "../lib/socket.js";
 
 const router = express.Router();
 
-router.get("/search", protectRoute, async (req, res) => {
+function escapeRegex(text) {
+  return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+}
+
+router.get("/search", protectRoute, apiLimiter, async (req, res) => {
   try {
     const { q } = req.query;
-    if (!q || q.length < 2) {
+    if (typeof q !== "string" || q.trim().length < 2) {
       return res.status(400).json({ message: "Search query must be at least 2 characters" });
     }
 
+    const sanitizedQuery = escapeRegex(q.trim());
     const currentUser = await User.findById(req.user._id);
     const friends = currentUser.friends || [];
     const friendRequests = currentUser.friendRequests || [];
@@ -19,8 +26,8 @@ router.get("/search", protectRoute, async (req, res) => {
     const users = await User.find({
       _id: { $ne: req.user._id },
       $or: [
-        { fullName: { $regex: q, $options: "i" } },
-        { username: { $regex: q, $options: "i" } }
+        { fullName: { $regex: sanitizedQuery, $options: "i" } },
+        { username: { $regex: sanitizedQuery, $options: "i" } }
       ]
     }).select("-password").limit(20);
 
@@ -37,7 +44,7 @@ router.get("/search", protectRoute, async (req, res) => {
   }
 });
 
-router.get("/friends", protectRoute, async (req, res) => {
+router.get("/friends", protectRoute, apiLimiter, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).populate("friends", "-password");
     res.json(user.friends);
@@ -47,7 +54,7 @@ router.get("/friends", protectRoute, async (req, res) => {
   }
 });
 
-router.get("/friend-requests", protectRoute, async (req, res) => {
+router.get("/friend-requests", protectRoute, apiLimiter, async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
       .populate("friendRequests", "-password")
@@ -59,7 +66,7 @@ router.get("/friend-requests", protectRoute, async (req, res) => {
   }
 });
 
-router.post("/friend-request/:userId", protectRoute, async (req, res) => {
+router.post("/friend-request/:userId", protectRoute, apiLimiter, async (req, res) => {
   try {
     const { userId } = req.params;
     const targetUser = await User.findById(userId);
@@ -101,7 +108,7 @@ router.post("/friend-request/:userId", protectRoute, async (req, res) => {
   }
 });
 
-router.post("/accept-friend/:userId", protectRoute, async (req, res) => {
+router.post("/accept-friend/:userId", protectRoute, apiLimiter, async (req, res) => {
   try {
     const { userId } = req.params;
     const user = await User.findById(req.user._id);
@@ -144,7 +151,7 @@ router.post("/accept-friend/:userId", protectRoute, async (req, res) => {
   }
 });
 
-router.post("/reject-friend/:userId", protectRoute, async (req, res) => {
+router.post("/reject-friend/:userId", protectRoute, apiLimiter, async (req, res) => {
   try {
     const { userId } = req.params;
     const user = await User.findById(req.user._id);
@@ -168,7 +175,7 @@ router.post("/reject-friend/:userId", protectRoute, async (req, res) => {
   }
 });
 
-router.post("/remove-friend/:userId", protectRoute, async (req, res) => {
+router.post("/remove-friend/:userId", protectRoute, apiLimiter, async (req, res) => {
   try {
     const { userId } = req.params;
     const user = await User.findById(req.user._id);

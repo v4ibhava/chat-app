@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Group from "../models/group.model.js";
 import GroupMessage from "../models/groupMessage.model.js";
 import User from "../models/user.model.js";
@@ -34,7 +35,10 @@ export const createGroup = async (req, res) => {
         });
 
         await group.save();
-        const populated = await Group.findById(group._id).populate("members", "fullName username profilePic publicKeyJWK");
+
+        const populated = await Group.findById(group._id)
+            .populate("members", "fullName username profilePic publicKeyJWK")
+            .populate("pendingRequests", "fullName username profilePic publicKeyJWK");
 
         // Notify all members via socket so their UI updates immediately
         for (const member of populated.members) {
@@ -55,10 +59,11 @@ export const getGroups = async (req, res) => {
     try {
         const groups = await Group.find({ members: req.user._id })
             .populate("members", "fullName username profilePic publicKeyJWK")
-            .populate("pendingRequests", "fullName username profilePic publicKeyJWK");
+            .populate("pendingRequests", "fullName username profilePic publicKeyJWK")
+            .sort({ updatedAt: -1 });
         res.status(200).json(groups);
     } catch (error) {
-        console.error("Error retrieving groups:", error.message);
+        console.error("Error fetching groups:", error.message);
         res.status(500).json({ message: "Internal Server Error" });
     }
 };
@@ -66,6 +71,9 @@ export const getGroups = async (req, res) => {
 export const updateGroup = async (req, res) => {
     try {
         const { id } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: "Invalid Group ID" });
+        }
         const { name, desc, groupPic, removeAvatar } = req.body;
 
         const group = await Group.findById(id);

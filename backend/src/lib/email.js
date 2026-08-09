@@ -14,6 +14,16 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+function escapeHTML(str) {
+  if (typeof str !== "string") return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 // Send Forgot Password OTP Email
 export const sendOTPEmail = async (email, otp, userName) => {
   try {
@@ -21,7 +31,7 @@ export const sendOTPEmail = async (email, otp, userName) => {
       from: `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL}>`,
       to: email,
       subject: `🔐 Reset Password - ${process.env.SMTP_FROM_NAME || "Zync"}`,
-      html: getForgotPasswordTemplate(userName, otp),
+      html: getForgotPasswordTemplate(escapeHTML(userName), escapeHTML(String(otp))),
     };
 
     await transporter.sendMail(mailOptions);
@@ -40,7 +50,7 @@ export const sendWelcomeEmail = async (email, userName) => {
       from: `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL}>`,
       to: email,
       subject: `🎉 Welcome to ${process.env.SMTP_FROM_NAME || "Zync"}!`,
-      html: getWelcomeTemplate(userName),
+      html: getWelcomeTemplate(escapeHTML(userName)),
     };
 
     await transporter.sendMail(mailOptions);
@@ -59,7 +69,12 @@ export const sendLoginEmail = async (email, userName, osInfo, ipAddress, date) =
       from: `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL}>`,
       to: email,
       subject: `🛡️ New Login Detected - ${process.env.SMTP_FROM_NAME || "Zync"}`,
-      html: getLoginTemplate(userName, osInfo, ipAddress, date),
+      html: getLoginTemplate(
+        escapeHTML(userName),
+        escapeHTML(osInfo),
+        escapeHTML(ipAddress),
+        escapeHTML(String(date))
+      ),
     };
 
     await transporter.sendMail(mailOptions);
