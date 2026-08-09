@@ -44,7 +44,7 @@ router.get("/search", protectRoute, apiLimiter, async (req, res) => {
   }
 });
 
-router.get("/friends", protectRoute, async (req, res) => {
+router.get("/friends", protectRoute, apiLimiter, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).populate("friends", "-password");
     res.json(user.friends);
@@ -54,7 +54,7 @@ router.get("/friends", protectRoute, async (req, res) => {
   }
 });
 
-router.get("/friend-requests", protectRoute, async (req, res) => {
+router.get("/friend-requests", protectRoute, apiLimiter, async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
       .populate("friendRequests", "-password")
@@ -66,7 +66,7 @@ router.get("/friend-requests", protectRoute, async (req, res) => {
   }
 });
 
-router.post("/friend-request/:userId", protectRoute, async (req, res) => {
+router.post("/friend-request/:userId", protectRoute, apiLimiter, async (req, res) => {
   try {
     const { userId } = req.params;
     const targetUser = await User.findById(userId);
@@ -108,7 +108,7 @@ router.post("/friend-request/:userId", protectRoute, async (req, res) => {
   }
 });
 
-router.post("/accept-friend/:userId", protectRoute, async (req, res) => {
+router.post("/accept-friend/:userId", protectRoute, apiLimiter, async (req, res) => {
   try {
     const { userId } = req.params;
     const user = await User.findById(req.user._id);
@@ -151,7 +151,7 @@ router.post("/accept-friend/:userId", protectRoute, async (req, res) => {
   }
 });
 
-router.post("/reject-friend/:userId", protectRoute, async (req, res) => {
+router.post("/reject-friend/:userId", protectRoute, apiLimiter, async (req, res) => {
   try {
     const { userId } = req.params;
     const user = await User.findById(req.user._id);
@@ -175,7 +175,7 @@ router.post("/reject-friend/:userId", protectRoute, async (req, res) => {
   }
 });
 
-router.post("/remove-friend/:userId", protectRoute, async (req, res) => {
+router.post("/remove-friend/:userId", protectRoute, apiLimiter, async (req, res) => {
   try {
     const { userId } = req.params;
     const user = await User.findById(req.user._id);
