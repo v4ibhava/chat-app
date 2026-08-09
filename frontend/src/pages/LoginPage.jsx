@@ -15,13 +15,13 @@ const LoginPage = () => {
   const { login, isLoggingIn } = useAuthStore();
 
   useEffect(() => {
+    localStorage.removeItem("zync_saved_password"); // Clean up legacy cleartext stored passwords
     const savedEmail = localStorage.getItem("zync_saved_email");
-    const savedPassword = localStorage.getItem("zync_saved_password");
-    if (savedEmail && savedPassword) {
-      setFormData({
+    if (savedEmail) {
+      setFormData(prev => ({
+        ...prev,
         email: savedEmail,
-        password: savedPassword,
-      });
+      }));
       setRememberMe(true);
     }
   }, []);
@@ -57,11 +57,10 @@ const LoginPage = () => {
       if (res && res.success) {
         if (rememberMe) {
           localStorage.setItem("zync_saved_email", formData.email.trim());
-          localStorage.setItem("zync_saved_password", formData.password.trim());
         } else {
           localStorage.removeItem("zync_saved_email");
-          localStorage.removeItem("zync_saved_password");
         }
+        localStorage.removeItem("zync_saved_password");
       } else if (res && !res.success) {
         setError(res.message);
       }
