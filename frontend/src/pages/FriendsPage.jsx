@@ -35,9 +35,12 @@ const FriendsPage = () => {
     }
   };
 
-  const filteredFriends = friends.filter(friend => 
-    friend.fullName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredFriends = friends.filter(friend => {
+    if (!friend) return false;
+    const query = (searchQuery || "").toLowerCase();
+    const fullName = (friend.fullName || "").toLowerCase();
+    return fullName.includes(query);
+  });
 
   const formatLastActive = (dateString) => {
     if (!dateString) return "N/A";

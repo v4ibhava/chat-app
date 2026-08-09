@@ -1,8 +1,9 @@
 import { generateToken } from "../lib/utils.js";
-import User from "../models/user.model.js"
-import bcrypt from "bcryptjs"
-import cloudinary from "../lib/cloudinary.js"
-import { sendOTPEmail, sendWelcomeEmail, sendLoginEmail } from "../lib/email.js"
+import User from "../models/user.model.js";
+import bcrypt from "bcryptjs";
+import cloudinary from "../lib/cloudinary.js";
+import { sendOTPEmail, sendWelcomeEmail, sendLoginEmail } from "../lib/email.js";
+import { io, getReceiverSocketId } from "../lib/socket.js";
 
 export const signup = async (req, res) => {
     const { fullName, email, password } = req.body
@@ -43,7 +44,7 @@ export const signup = async (req, res) => {
         })
         if (newUser) {
             // generate jwt token 
-            generateToken(newUser._id, res)
+            const token = generateToken(newUser._id, res);
             await newUser.save();
 
             // Send welcome email asynchronously so it doesn't block the response
@@ -58,6 +59,7 @@ export const signup = async (req, res) => {
                 username: newUser.username,
                 profilePic: newUser.profilePic,
                 createdAt: newUser.createdAt,
+                token,
             })
         } else {
             res.status(400).json({ message: "Invalid user data" })
@@ -81,7 +83,7 @@ export const login = async (req, res) => {
         if (!isPasswordCorrect) {
             return res.status(400).json({ message: "Invalid credentials" })
         }
-        generateToken(user._id, res)
+        const token = generateToken(user._id, res);
         
         // Trigger login notification email asynchronously
         const userAgent = req.headers["user-agent"] || "Unknown Device";
@@ -98,6 +100,7 @@ export const login = async (req, res) => {
             username: user.username,
             profilePic: user.profilePic,
             createdAt: user.createdAt,
+            token,
         })
     } catch (error) {
         console.log("Error in login controller", error.message);
@@ -124,18 +127,26 @@ export const logout = (req, res) => {
 
 export const updateProfile = async (req, res) => {
     try {
-        const { profilePic, fullName, email, username, showLastSeen } = req.body;
-        const userId = req.user._id;
+        const { profilePic, fullName, email, username, showLastSeen, notificationsEnabled } = req.body;
+        const userId = req.user?._id;
+
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized ~ User session missing" });
+        }
         
         const updates = {};
 
         if (showLastSeen !== undefined) {
             updates.showLastSeen = !!showLastSeen;
         }
+
+        if (notificationsEnabled !== undefined) {
+            updates.notificationsEnabled = !!notificationsEnabled;
+        }
         
         if (profilePic) {
-            const uploadResponse = await cloudinary.uploader.upload(profilePic);
-            updates.profilePic = uploadResponse.secure_url;
+            // Save compressed base64 directly to MongoDB without Cloudinary dependency
+            updates.profilePic = profilePic;
         }
         
         if (fullName !== undefined) {
@@ -201,10 +212,34 @@ export const updateProfile = async (req, res) => {
         }
 
         const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true }).select("-password");
+
+        // Notify online friends about profile/avatar update for live sync & P2P mirroring
+        try {
+            const userWithFriends = await User.findById(userId).select("friends");
+            if (userWithFriends && Array.isArray(userWithFriends.friends)) {
+                userWithFriends.friends.forEach(friendId => {
+                    const socketId = getReceiverSocketId(friendId.toString());
+                    if (socketId) {
+                        io.to(socketId).emit("friend-profile-updated", {
+                            userId: updatedUser._id.toString(),
+                            profilePic: updatedUser.profilePic,
+                            fullName: updatedUser.fullName,
+                            username: updatedUser.username
+                        });
+                    }
+                });
+            }
+        } catch (e) {
+            console.error("Error notifying friends of profile update:", e);
+        }
+
         res.status(200).json(updatedUser);
     } catch (error) {
-        console.log("Error in update profile:", error);
-        res.status(500).json({ message: "Internal Server Error" });
+        console.error("Error in update profile:", error);
+        if (error.code === 11000) {
+            return res.status(400).json({ message: "Username or email is already in use." });
+        }
+        res.status(400).json({ message: error.message || "Failed to update profile" });
     }
 }
 

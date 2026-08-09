@@ -88,28 +88,28 @@ const SearchBar = () => {
       <div className="relative">
         <input
           type="text"
-          placeholder="Search friends..."
+          placeholder="Search users..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query.length >= 2 && setShowResults(true)}
-          className="input input-bordered w-full pl-10 h-10"
+          className="w-full pl-10 h-10 bg-[#1a1a20] border-none text-xs text-zinc-200 placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/40"
         />
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
       </div>
 
       {showResults && query.length >= 1 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-base-200 border rounded-lg shadow-xl z-50 max-h-96 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-[#18181c] border border-[#282832] rounded-2xl shadow-2xl z-50 max-h-96 overflow-y-auto">
           {query.length < 2 ? (
-            <div className="p-4 text-center text-zinc-400 text-sm">Type at least 2 characters to search</div>
+            <div className="p-4 text-center text-zinc-500 text-xs">Type at least 2 characters to search</div>
           ) : loading ? (
-            <div className="p-4 text-center text-zinc-400">Searching...</div>
+            <div className="p-4 text-center text-zinc-500 text-xs">Searching...</div>
           ) : results.length === 0 ? (
-            <div className="p-4 text-center text-zinc-400">No users found</div>
+            <div className="p-4 text-center text-zinc-500 text-xs">No users found</div>
           ) : (
             results.map(user => (
               <div 
                 key={user._id} 
-                className="flex items-center justify-between p-3 hover:bg-base-300 border-b last:border-0 transition-colors"
+                className="flex items-center justify-between p-3 hover:bg-[#1f1f26] border-b border-[#282832] last:border-0 transition-colors"
               >
                 <div 
                   className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
@@ -123,9 +123,9 @@ const SearchBar = () => {
                   />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <p className="font-medium truncate">{user.fullName}</p>
+                      <p className="font-medium truncate text-white text-sm">{user.fullName}</p>
                       {user.username && (
-                        <span className="text-xs text-zinc-400 font-normal">@{user.username}</span>
+                        <span className="text-xs text-zinc-500 font-normal">@{user.username}</span>
                       )}
                     </div>
                     <p className="text-xs text-zinc-500 truncate">{user.email}</p>
@@ -137,25 +137,25 @@ const SearchBar = () => {
                     {user.isFriend ? (
                       <button
                         onClick={(e) => handleChat(e, user)}
-                        className="btn btn-xs sm:btn-sm btn-primary"
+                        className="px-3 py-1.5 rounded-xl bg-primary/80 hover:bg-primary text-white text-xs font-semibold transition-all flex items-center gap-1"
                       >
-                        <MessageCircle className="w-3 h-3 sm:w-4 sm:h-4" />
-                        <span className="hidden sm:inline">Chat</span>
+                        <MessageCircle className="w-3 h-3" />
+                        Chat
                       </button>
                     ) : user.requestSent ? (
                       <button
                         disabled
-                        className="btn btn-xs sm:btn-sm btn-disabled btn-outline"
+                        className="px-3 py-1.5 rounded-xl bg-[#2a2a34] text-zinc-500 text-xs font-semibold cursor-not-allowed"
                       >
-                        <span className="text-xs">Sent</span>
+                        Sent
                       </button>
                     ) : (
                       <button
                         onClick={(e) => { e.stopPropagation(); sendFriendRequest(user._id); }}
-                        className="btn btn-xs sm:btn-sm btn-success"
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600/70 hover:bg-emerald-600 text-white text-xs font-semibold transition-all flex items-center gap-1"
                       >
-                        <UserPlus className="w-3 h-3 sm:w-4 sm:h-4" />
-                        <span className="hidden sm:inline">Add</span>
+                        <UserPlus className="w-3 h-3" />
+                        Add
                       </button>
                     )}
                   </div>

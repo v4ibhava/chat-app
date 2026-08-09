@@ -7,7 +7,7 @@ import groupRoutes from "./routes/group.routes.js";
 import {connectDB} from "./lib/db.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import { app, server } from "./lib/socket.js";
+import { app, server, runGlobalPendingSync } from "./lib/socket.js";
 import path from "path";
 import helmet from "helmet";
 import mongoSanitize from "express-mongo-sanitize";
@@ -27,7 +27,8 @@ const FRONTEND_URLS = [
 
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(cookieParser());
 
 app.use(
@@ -48,7 +49,25 @@ app.use(
 // Security middleware
 app.use(helmet());
 app.use(mongoSanitize());
-app.use(xss());
+
+// Custom wrapper for xss-clean to prevent regex stack overflow on base64 image strings
+const xssMiddleware = xss();
+app.use((req, res, next) => {
+  if (req.body) {
+    const tempPic = req.body.profilePic;
+    const tempImg = req.body.image;
+    delete req.body.profilePic;
+    delete req.body.image;
+    
+    xssMiddleware(req, res, () => {
+      if (tempPic !== undefined) req.body.profilePic = tempPic;
+      if (tempImg !== undefined) req.body.image = tempImg;
+      next();
+    });
+  } else {
+    next();
+  }
+});
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -94,4 +113,5 @@ server.listen(PORT, async () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`📝 Environment: ${process.env.NODE_ENV || "development"}`);
   await connectDB();
+  await runGlobalPendingSync();
 });

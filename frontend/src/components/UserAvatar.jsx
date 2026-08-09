@@ -27,11 +27,11 @@ const UserAvatar = ({ src, alt, size = "md", isOnline = false, showStatus = true
   };
 
   return (
-    <div className={`relative inline-block rounded-full ${className}`}>
+    <div className={`relative inline-block rounded-full shrink-0 ${className}`}>
       <img
         src={src || DEFAULT_AVATAR}
         alt={alt}
-        className={`${sizeClasses[size]} object-cover rounded-full ${ringSizes[size]} ring-base-300`}
+        className={`${sizeClasses[size]} object-cover rounded-full aspect-square ${ringSizes[size]} ring-base-300 shrink-0`}
       />
       {showStatus && (
         <span 

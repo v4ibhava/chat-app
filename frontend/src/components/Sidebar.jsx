@@ -3,7 +3,6 @@ import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton";
 import UserAvatar from "./UserAvatar";
-import { Users } from "lucide-react";
 
 const Sidebar = () => {
   const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading } = useChatStore();
@@ -16,54 +15,54 @@ const Sidebar = () => {
   if (isUsersLoading) return <SidebarSkeleton selectedUser={selectedUser} />;
 
   return (
-    <aside className={`h-full border-r border-base-300 flex flex-col bg-base-100 transition-all duration-200
-      ${selectedUser ? "hidden md:flex" : "w-full md:flex"} md:w-16 lg:w-72`}>
-      <div className="border-b border-base-300 w-full p-3 lg:p-5">
-        <div className="flex items-center gap-2">
-          <Users className="size-5 lg:size-6" />
-          <span className="font-medium block md:hidden lg:block">Friends</span>
-        </div>
-      </div>
+    <div className="flex flex-col h-full w-full bg-base-200 border-r border-base-300 transition-colors duration-200">
+      {/* Friends List */}
+      <div className="flex-1 overflow-y-auto px-3 py-1 space-y-1.5">
+        {users.map((user) => {
+          const isSelected = selectedUser?._id === user._id;
+          const isOnline = onlineUsers.includes(user._id);
 
-      <div className="overflow-y-auto w-full py-2 lg:py-3">
-        {users.map((user) => (
-          <button
-            key={user._id}
-            onClick={() => setSelectedUser(user)}
-            className={`
-              w-full p-2 lg:p-3 flex items-center gap-2 lg:gap-3
-              hover:bg-base-200 transition-colors
-              ${selectedUser?._id === user._id ? "bg-base-200 ring-1 ring-primary/30" : ""}
-            `}
-          >
-            <UserAvatar
+          return (
+            <button
+              key={user._id}
+              onClick={() => setSelectedUser(user)}
+              className={`
+                w-full p-3 flex items-center gap-3.5 rounded-2xl transition-all duration-200 text-left
+                ${isSelected 
+                  ? "bg-base-100 text-base-content shadow-md border border-base-300" 
+                  : "hover:bg-base-100/60 text-base-content/80"}
+              `}
+            >
+              <UserAvatar
                 src={user.profilePic}
                 alt={user.fullName}
                 size="lg"
-                isOnline={onlineUsers.includes(user._id)}
+                isOnline={isOnline}
                 showStatus={!user.isDeletedAccount}
               />
 
-            <div className="block md:hidden lg:block text-left min-w-0 flex-1">
-              <div className="font-medium truncate">{user.isDeletedAccount ? "Deleted User" : user.fullName}</div>
-              {user.isDeletedAccount ? (
-                <div className="text-xs text-zinc-500 truncate">Account Deleted</div>
-              ) : (
-                user.username && (
-                  <div className="text-xs text-zinc-400 truncate">@{user.username}</div>
-                )
-              )}
-            </div>
-          </button>
-        ))}
+              <div className="block md:hidden lg:block min-w-0 flex-1">
+                <div className="font-semibold text-sm truncate text-base-content">
+                  {user.isDeletedAccount ? "Deleted User" : user.fullName}
+                </div>
+                {user.isDeletedAccount ? (
+                  <div className="text-xs text-base-content/50 truncate">Account Deleted</div>
+                ) : (
+                  <div className="text-xs text-base-content/60 truncate mt-0.5 font-mono">
+                    @{user.username || "user"}
+                  </div>
+                )}
+              </div>
+            </button>
+          );
+        })}
 
         {users.length === 0 && (
-          <div className="text-center text-zinc-500 py-6 px-2">
-            <p className="text-xs sm:text-sm">Search and add friends to start chatting</p>
-          </div>
+          <div className="text-center text-base-content/50 py-8 text-sm">No friends online</div>
         )}
       </div>
-    </aside>
+    </div>
   );
 };
+
 export default Sidebar;

@@ -2,21 +2,18 @@ import mongoose from "mongoose";
 
 const groupSchema = new mongoose.Schema(
     {
-        encryptedName: {
+        name: {
             type: String,
             required: true,
+            trim: true,
         },
-        encryptedDesc: {
+        desc: {
             type: String,
             default: "",
         },
-        encryptedAvatar: {
+        groupPic: {
             type: String,
             default: "",
-        },
-        iv: {
-            type: String,
-            required: true,
         },
         admins: [{
             type: mongoose.Schema.Types.ObjectId,
@@ -36,6 +33,17 @@ const groupSchema = new mongoose.Schema(
         pendingRequests: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
+        }],
+        senderKeys: [{
+            userId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+                required: true,
+            },
+            senderKeyJWK: {
+                type: String,
+                required: true,
+            },
         }],
     },
     { timestamps: true }

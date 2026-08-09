@@ -3,8 +3,11 @@ import { axiosInstance } from "../lib/axios.js";
 import toast from "react-hot-toast";
 import io from "socket.io-client";
 import { useChatStore } from "./useChatStore.js";
+import { useGroupStore } from "./useGroupStore.js";
 import { playMessageSound } from "../lib/sounds.js";
+import { showNewMessageNotification } from "../lib/notifications.jsx";
 import { getLocalKeypair, saveLocalKeypair, generateE2EEKeypair, decryptPayload, importPublicKey, deriveSharedKey } from "../lib/crypto.js";
+import { saveLocalMessage, deleteLocalMessage, saveLocalProfilePic, getLocalProfilePic, updateLocalMessageStatus } from "../lib/db.js";
 
 
 const rawBaseUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.MODE === "development" ? "http://localhost:5000" : "/");
@@ -22,12 +25,45 @@ export const useAuthStore = create((set, get) => ({
     checkAuth: async () => {
         try {
             const res = await axiosInstance.get("/auth/check");
-            set({ authUser: res.data })
-            await get().checkAndPublishE2EEKeys();
-            get().connectSocket();
+            let user = res.data;
+            if (user?._id) {
+                if (user.profilePic) {
+                    await saveLocalProfilePic(user._id, user.profilePic).catch(() => {});
+                } else {
+                    const localPic = await getLocalProfilePic(user._id).catch(() => null);
+                    if (localPic) {
+                        console.log("Restoring local profile picture from IndexedDB...");
+                        user = { ...user, profilePic: localPic };
+                        axiosInstance.put("/auth/update-profile", { profilePic: localPic }).catch(() => {});
+                    }
+                }
+            }
+            set({ authUser: user });
+
+            // Post-auth tasks in isolated try/catches so non-critical errors don't cause logout
+            try {
+                await get().checkAndPublishE2EEKeys();
+            } catch (e) {
+                console.error("E2EE key check error in checkAuth:", e);
+            }
+            try {
+                await useChatStore.getState().getUsers();
+            } catch (e) {
+                console.error("getUsers error in checkAuth:", e);
+            }
+            try {
+                get().connectSocket();
+            } catch (e) {
+                console.error("connectSocket error in checkAuth:", e);
+            }
+
+            if (user && !user.profilePic && get().socket) {
+                get().socket.emit("request-profile-backup", { targetUserId: user._id });
+            }
         } catch (error) {
             console.log("error in checkAuth: ", error);
-            set({ authUser: null })
+            localStorage.removeItem("zync_token");
+            set({ authUser: null });
         } finally {
             set({ isCheckingAuth: false });
         }
@@ -61,15 +97,18 @@ export const useAuthStore = create((set, get) => ({
         set({ isSignUp: true });
         try {
             const res = await axiosInstance.post("/auth/signup", data);
+            if (res.data?.token) {
+                localStorage.setItem("zync_token", res.data.token);
+            }
             set({ authUser: res.data });
-            await get().checkAndPublishE2EEKeys();
+            try { await get().checkAndPublishE2EEKeys(); } catch (e) {}
+            try { await useChatStore.getState().getUsers(); } catch (e) {}
             get().connectSocket();
             return { success: true };
         } catch (error) {
             const message = error.response?.data?.message || "Signup failed";
             return { success: false, message };
         } finally {
-            set({ isSignUp: true ? false : false }); // Keep standard logic
             set({ isSignUp: false });
         }
     },
@@ -77,8 +116,12 @@ export const useAuthStore = create((set, get) => ({
         set({ isLoggingIn: true });
         try {
             const res = await axiosInstance.post("/auth/login", data);
+            if (res.data?.token) {
+                localStorage.setItem("zync_token", res.data.token);
+            }
             set({ authUser: res.data });
-            await get().checkAndPublishE2EEKeys();
+            try { await get().checkAndPublishE2EEKeys(); } catch (e) {}
+            try { await useChatStore.getState().getUsers(); } catch (e) {}
             get().connectSocket();
             return { success: true };
         } catch (error) {
@@ -91,11 +134,13 @@ export const useAuthStore = create((set, get) => ({
     logout: async () => {
         try {
             await axiosInstance.post("/auth/logout");
+        } catch (error) {
+            console.error("Error during logout request:", error);
+        } finally {
+            localStorage.removeItem("zync_token");
             set({ authUser: null });
             toast.success("Logged out successfully!");
             get().disconnectSocket();
-        } catch (error) {
-            toast.error(error.response?.data?.message || "Logout failed");
         }
     },
     updateProfile: async (data) => {
@@ -103,11 +148,15 @@ export const useAuthStore = create((set, get) => ({
         try {
             const res = await axiosInstance.put("/auth/update-profile", data);
             set({ authUser: res.data });
+            if (res.data?._id && res.data?.profilePic) {
+                await saveLocalProfilePic(res.data._id, res.data.profilePic);
+            }
             toast.success("Profile updated successfully!");
+            return true;
         } catch (error) {
             console.log("error in update profile: ", error);
             toast.error(error.response?.data?.message || "Failed to update profile");
-
+            return false;
         } finally {
             set({ isUpdatingProfile: false });
         }
@@ -121,10 +170,12 @@ export const useAuthStore = create((set, get) => ({
                 userId: authUser._id
             },
             reconnection: true,
-            reconnectionAttempts: 5,
+            reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            timeout: 10000,
+            reconnectionDelayMax: 4000,
+            timeout: 20000,
+            transports: ["websocket", "polling"],
+            withCredentials: true,
         });
 
         socket.connect();
@@ -177,7 +228,7 @@ export const useAuthStore = create((set, get) => ({
         });
 
         // Listen for WebRTC signals globally (calls and chat)
-        socket.on("webrtc-signal", (payload) => {
+        socket.off("webrtc-signal").on("webrtc-signal", (payload) => {
             const { signal } = payload;
             if (signal && signal.type && signal.type.startsWith("call-")) {
                 useChatStore.getState().handleCallSignal(payload);
@@ -190,6 +241,14 @@ export const useAuthStore = create((set, get) => ({
         // Handle connection events
         socket.on("connect", () => {
             console.log("Socket connected:", socket.id);
+            socket.emit("userReconnected", authUser._id);
+
+            const groupStore = useGroupStore.getState();
+            if (groupStore.groups.length > 0) {
+                socket.emit("join-group-rooms", groupStore.groups.map(g => g._id));
+            } else {
+                groupStore.getGroups();
+            }
         });
 
         socket.on("disconnect", (reason) => {
@@ -198,8 +257,16 @@ export const useAuthStore = create((set, get) => ({
 
         socket.on("reconnect", (attemptNumber) => {
             console.log("Socket reconnected after", attemptNumber, "attempts");
-            // Re-emit userId on reconnect
             socket.emit("userReconnected", authUser._id);
+            // Rejoin group rooms after reconnect
+            const groupStore = useGroupStore.getState();
+            if (groupStore.groups.length > 0) {
+                socket.emit("join-group-rooms", groupStore.groups.map(g => g._id));
+                // Re-fetch messages for the selected group if any
+                if (groupStore.selectedGroup?._id) {
+                    groupStore.fetchGroupMessages(groupStore.selectedGroup._id);
+                }
+            }
         });
 
         socket.on("reconnect_attempt", (attemptNumber) => {
@@ -229,6 +296,40 @@ export const useAuthStore = create((set, get) => ({
             useChatStore.getState().getUsers();
         });
 
+        socket.on("friend-profile-updated", async (payload) => {
+            if (payload?.userId && payload?.profilePic) {
+                await saveLocalProfilePic(payload.userId, payload.profilePic);
+                const chatStore = useChatStore.getState();
+                const { users, selectedUser } = chatStore;
+                const newUsers = users.map(u => u._id === payload.userId ? { ...u, profilePic: payload.profilePic, fullName: payload.fullName || u.fullName } : u);
+                useChatStore.setState({ users: newUsers });
+                if (selectedUser && selectedUser._id === payload.userId) {
+                    useChatStore.setState({ selectedUser: { ...selectedUser, profilePic: payload.profilePic, fullName: payload.fullName || selectedUser.fullName } });
+                }
+            }
+        });
+
+        socket.on("request-profile-backup", async ({ requesterId }) => {
+            if (requesterId) {
+                const localBackup = await getLocalProfilePic(requesterId);
+                if (localBackup) {
+                    console.log(`Peer requested profile backup. Restoring profile picture for ${requesterId}...`);
+                    socket.emit("restore-profile-backup", { targetUserId: requesterId, profilePic: localBackup });
+                }
+            }
+        });
+
+        socket.on("profile-restored-from-peer", async ({ profilePic }) => {
+            if (profilePic) {
+                const current = get().authUser;
+                if (current) {
+                    set({ authUser: { ...current, profilePic } });
+                    await saveLocalProfilePic(current._id, profilePic);
+                    toast.success("Profile picture automatically restored from friend's backup!");
+                }
+            }
+        });
+
         socket.on("friendRequestsUpdated", () => {
             console.log("Friend requests updated, refreshing...");
             window.dispatchEvent(new CustomEvent("refreshFriendRequests"));
@@ -246,7 +347,7 @@ export const useAuthStore = create((set, get) => ({
 
         socket.on("chat-fallback-message", async (payload) => {
             const { from, message } = payload;
-            const chatStore = useChatStore.getState();
+            let chatStore = useChatStore.getState();
             let msg = message;
 
             if (message && message.isEncrypted) {
@@ -254,12 +355,21 @@ export const useAuthStore = create((set, get) => ({
                     const myId = useAuthStore.getState().authUser?._id;
                     const myKeypair = await getLocalKeypair(myId);
                     
-                    // Retrieve sender's public key from friend list
-                    const senderUser = chatStore.users.find(u => u._id === from);
-                    if (myKeypair && senderUser && senderUser.publicKeyJWK) {
-                        const senderPub = await importPublicKey(senderUser.publicKeyJWK);
+                    let senderUser = chatStore.users.find(u => u._id === from);
+                    if (!senderUser || !senderUser.publicKeyJWK) {
+                        await chatStore.getUsers();
+                        chatStore = useChatStore.getState();
+                        senderUser = chatStore.users.find(u => u._id === from);
+                    }
+
+                    const pubKey = message.senderPublicKeyJWK || senderUser?.publicKeyJWK;
+                    if (myKeypair && pubKey) {
+                        const senderPub = await importPublicKey(pubKey);
                         const sharedKey = await deriveSharedKey(myKeypair.privateKey, senderPub);
                         msg = await decryptPayload(message.iv, message.ciphertext, sharedKey);
+                    } else {
+                        console.error("Missing keys to decrypt live fallback message");
+                        return;
                     }
                 } catch (decErr) {
                     console.error("Failed to decrypt live fallback message:", decErr);
@@ -267,8 +377,20 @@ export const useAuthStore = create((set, get) => ({
                 }
             }
 
-            await chatStore.saveLocalMessage(msg);
+            await saveLocalMessage(msg);
             playMessageSound();
+
+            socket.emit("message-delivered", { messageId: msg._id, senderId: from });
+
+            if (!chatStore.selectedUser || chatStore.selectedUser._id !== from) {
+                const sender = chatStore.users.find(u => u._id === from);
+                showNewMessageNotification(
+                    sender?.fullName || "Unknown User",
+                    from,
+                    msg?.text || "",
+                    sender?.profilePic
+                );
+            }
             
             if (chatStore.selectedUser && chatStore.selectedUser._id === from) {
                 const currentMsgs = chatStore.messages;
@@ -278,15 +400,110 @@ export const useAuthStore = create((set, get) => ({
                         : msg;
                     useChatStore.setState({ messages: [...currentMsgs, processedMsg] });
                 }
+                socket.emit("mark-messages-seen", { friendId: from });
             }
         });
 
         socket.on("chat-fallback-delete", async (payload) => {
             const { from, messageId } = payload;
+            await deleteLocalMessage(messageId);
             const chatStore = useChatStore.getState();
-            await chatStore.deleteLocalMessage(messageId);
             if (chatStore.selectedUser && chatStore.selectedUser._id === from) {
                 useChatStore.setState({ messages: chatStore.messages.filter(m => m._id !== messageId) });
+            }
+        });
+
+        // Handle offline messages globally so they are received even if no
+        // chat panel is open. The server's emit includes an ack callback —
+        // we call it with the IDs we successfully processed so the server
+        // knows it is safe to delete them from the database.
+        socket.on("offline-messages-deliver", async (offlineMsgs, ack) => {
+            if (!Array.isArray(offlineMsgs) || offlineMsgs.length === 0) {
+                if (typeof ack === "function") ack([]);
+                return;
+            }
+
+            const acknowledgedIds = [];
+            const myId = get().authUser?._id;
+
+            for (const item of offlineMsgs) {
+                let msg = item.messageData;
+
+                // Decrypt if it is an E2EE package
+                if (msg && msg.isEncrypted) {
+                    try {
+                        const myKeypair = await getLocalKeypair(myId);
+                        let chatStore = useChatStore.getState();
+                        let senderUser = chatStore.users.find(u => u._id === item.senderId);
+
+                        if (!senderUser || !senderUser.publicKeyJWK) {
+                            await chatStore.getUsers();
+                            chatStore = useChatStore.getState();
+                            senderUser = chatStore.users.find(u => u._id === item.senderId);
+                        }
+
+                        const pubKey = msg.senderPublicKeyJWK || senderUser?.publicKeyJWK;
+
+                        if (myKeypair && pubKey) {
+                            const senderPub = await importPublicKey(pubKey);
+                            const sharedKey = await deriveSharedKey(myKeypair.privateKey, senderPub);
+                            msg = await decryptPayload(msg.iv, msg.ciphertext, sharedKey);
+                        } else {
+                            console.error("Missing keys to decrypt offline message from sender:", item.senderId);
+                            continue;
+                        }
+                    } catch (decErr) {
+                        console.error("Failed to decrypt offline message:", decErr);
+                        continue;
+                    }
+                }
+
+                await saveLocalMessage(msg);
+                acknowledgedIds.push(item._id);
+
+                const chatStore = useChatStore.getState();
+                const { selectedUser } = chatStore;
+
+                if (selectedUser && selectedUser._id === item.senderId) {
+                    const currentMsgs = chatStore.messages;
+                    if (!currentMsgs.some(m => m._id === msg._id)) {
+                        const processedMsg = (msg.fileBlob && msg.fileType && msg.fileType.startsWith("image/"))
+                            ? { ...msg, image: URL.createObjectURL(msg.fileBlob) }
+                            : msg;
+                        useChatStore.setState({ messages: [...currentMsgs, processedMsg] });
+                    }
+                } else {
+                    playMessageSound();
+                }
+            }
+
+            // Acknowledge successfully processed messages so the server can
+            // safely delete them from the pending queue.
+            if (typeof ack === "function") {
+                ack(acknowledgedIds);
+            }
+        });
+
+        socket.on("message-sent-ack", async (payload) => {
+            const { tempId, realId, status } = payload;
+            await updateLocalMessageStatus(tempId, status);
+            useChatStore.setState(state => ({
+                messages: state.messages.map(m => (m._id === tempId || m._id === realId) ? { ...m, _id: realId || tempId, status: status || "sent" } : m)
+            }));
+        });
+
+        socket.on("message-status-update", async (payload) => {
+            const { messageId, senderId, friendId, status } = payload;
+            if (messageId) {
+                await updateLocalMessageStatus(messageId, status);
+                useChatStore.setState(state => ({
+                    messages: state.messages.map(m => m._id === messageId ? { ...m, status } : m)
+                }));
+            } else if (friendId || senderId) {
+                const targetFriend = friendId || senderId;
+                useChatStore.setState(state => ({
+                    messages: state.messages.map(m => m.receiverId === targetFriend ? { ...m, status } : m)
+                }));
             }
         });
     },
@@ -300,6 +517,7 @@ export const useAuthStore = create((set, get) => ({
     deleteAccount: async () => {
         try {
             await axiosInstance.delete("/auth/delete-account");
+            localStorage.removeItem("zync_token");
             set({ authUser: null });
             get().disconnectSocket();
             toast.success("Account permanently deleted!");

@@ -3,6 +3,7 @@ import { toast } from "react-hot-toast";
 import { axiosInstance } from "../lib/axios.js";
 import { useAuthStore } from "./useAuthStore.js";
 import { playMessageSound } from "../lib/sounds.js";
+import { showNewMessageNotification } from "../lib/notifications.jsx";
 import { getLocalMessages, saveLocalMessage, deleteLocalMessage } from "../lib/db.js";
 import { startDialTone, startRingTone, stopTone } from "../lib/ringtone.js";
 import { getLocalKeypair, importPublicKey, deriveSharedKey, encryptPayload, decryptPayload } from "../lib/crypto.js";
@@ -12,6 +13,7 @@ const peerConnections = {}; // { friendId: RTCPeerConnection }
 const dataChannels = {}; // { friendId: RTCDataChannel }
 const fileTransfers = {}; // { fileId: { meta, chunks, receivedSize } }
 const activeSendFileTransfers = {}; // { fileId: { file, peerId, messageId, createdAt, text, isSync, resume } }
+const p2pRetryCounts = {}; // { friendId: number }
 let callIceQueue = [];
 let screenAudioMix = null;
 
@@ -20,8 +22,15 @@ const peerConfiguration = {
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
         { urls: "stun:stun2.l.google.com:19302" },
-        { urls: "stun:stun.services.mozilla.com" }
-    ]
+        { urls: "stun:stun3.l.google.com:19302" },
+        { urls: "stun:stun4.l.google.com:19302" },
+        { urls: "stun:stun.services.mozilla.com:3478" },
+        { urls: "stun:stun.cloudflare.com:3478" },
+        { urls: "stun:stun.matrix.org:443" },
+        { urls: "stun:stun.nextcloud.com:443" },
+        { urls: "stun:global.stun.twilio.com:3478" }
+    ],
+    iceCandidatePoolSize: 10
 };
 
 export const useChatStore = create((set, get) => ({
@@ -48,6 +57,11 @@ export const useChatStore = create((set, get) => ({
     isCameraOff: false,
     isRemoteCameraOff: false,
     callConnection: null,
+    callGroupId: null,
+    isGroupCall: false,
+    groupCallMembers: [],
+    groupCallRemoteStreams: [],
+    groupCallConnections: {},
 
     getUsers: async () => {
         set({ isUsersLoading: true });
@@ -55,6 +69,16 @@ export const useChatStore = create((set, get) => ({
             const res = await axiosInstance.get("/messages/users");
             if (Array.isArray(res.data)) {
                 set({ users: res.data });
+                const { selectedUser } = get();
+                if (!selectedUser) {
+                    const savedId = sessionStorage.getItem("zync_selected_user");
+                    if (savedId) {
+                        const saved = res.data.find(u => u._id === savedId);
+                        if (saved) {
+                            set({ selectedUser: saved });
+                        }
+                    }
+                }
             } else {
                 set({ users: [] });
             }
@@ -92,12 +116,25 @@ export const useChatStore = create((set, get) => ({
 
             set({ messages: processedMsgs });
 
+            // Mark messages from friend as seen
+            const socket = useAuthStore.getState().socket;
+            if (socket) {
+                socket.emit("mark-messages-seen", { friendId });
+            }
+
             // Connect P2P WebRTC
             get().connectToPeer(friendId);
         } catch (error) {
             console.error("error loading local messages: ", error);
         } finally {
             set({ isMessagesLoading: false });
+        }
+    },
+
+    markAsSeen: (friendId) => {
+        const socket = useAuthStore.getState().socket;
+        if (socket && friendId) {
+            socket.emit("mark-messages-seen", { friendId });
         }
     },
 
@@ -147,23 +184,29 @@ export const useChatStore = create((set, get) => ({
             console.log(`P2P Connection with ${friendId}: ${pc.connectionState}`);
             if (pc.connectionState === "connected") {
                 set({ p2pStatus: "connected" });
+                p2pRetryCounts[friendId] = 0;
             } else if (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed") {
                 set({ p2pStatus: "offline" });
                 delete peerConnections[friendId];
                 delete dataChannels[friendId];
 
-                // Auto-reconnect if the user is still online and we are still viewing their chat
+                const retries = (p2pRetryCounts[friendId] || 0) + 1;
+                p2pRetryCounts[friendId] = retries;
+
+                // Auto-reconnect up to 2 attempts if user is still online and we are still viewing their chat
                 const onlineUsers = useAuthStore.getState().onlineUsers;
                 const isFriendOnline = onlineUsers.includes(friendId);
                 const selectedUser = get().selectedUser;
                 
-                if (isFriendOnline && selectedUser && selectedUser._id === friendId) {
-                    console.log(`Attempting P2P reconnection with ${friendId}...`);
+                if (retries <= 2 && isFriendOnline && selectedUser && selectedUser._id === friendId) {
+                    console.log(`Attempting P2P reconnection with ${friendId} (Attempt ${retries}/2)...`);
                     setTimeout(() => {
                         if (get().selectedUser?._id === friendId) {
                             get().connectToPeer(friendId);
                         }
-                    }, 3000);
+                    }, 4000);
+                } else {
+                    console.log(`P2P WebRTC failed or reached max retries for ${friendId}. Utilizing Socket fallback.`);
                 }
             }
         };
@@ -399,6 +442,15 @@ export const useChatStore = create((set, get) => ({
             const msg = data.message;
             await saveLocalMessage(msg);
             playMessageSound();
+            if (!selectedUser || selectedUser._id !== friendId) {
+                const sender = get().users.find(u => u._id === friendId);
+                showNewMessageNotification(
+                    sender?.fullName || "Unknown User",
+                    friendId,
+                    msg?.text || "",
+                    sender?.profilePic
+                );
+            }
             if (selectedUser && selectedUser._id === friendId) {
                 const currentMsgs = get().messages;
                 if (!currentMsgs.some(m => m._id === msg._id)) {
@@ -420,7 +472,7 @@ export const useChatStore = create((set, get) => ({
         }
 
         if (data.type === "file-meta") {
-            const { fileId, fileName, fileSize, fileType, messageId, senderId, receiverId, createdAt, text, isSync } = data.meta;
+            const { fileId, fileName, senderId, isSync } = data.meta;
             fileTransfers[fileId] = {
                 meta: data.meta,
                 chunks: [],
@@ -460,7 +512,39 @@ export const useChatStore = create((set, get) => ({
 
         const dc = dataChannels[friendId];
         if (!dc || dc.readyState !== "open") {
-            toast.error("User is offline. Cannot send files.");
+            console.log("P2P DataChannel unavailable. Sending file via Socket fallback...");
+            const messageId = existingMessageId || "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
+            const createdAt = existingCreatedAt || new Date().toISOString();
+
+            const localMsg = {
+                _id: messageId,
+                chatKey: `${myId}_${friendId}`,
+                senderId: myId,
+                receiverId: friendId,
+                text: text || "",
+                fileBlob: file, // Keep actual file/image binary in IndexedDB
+                image: file.type && file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+                fileName: file.name,
+                fileSize: file.size,
+                fileType: file.type,
+                createdAt
+            };
+
+            await saveLocalMessage(localMsg);
+            if (!existingMessageId) {
+                set({ messages: [...get().messages, localMsg] });
+            }
+
+            const socket = useAuthStore.getState().socket;
+            if (socket) {
+                socket.emit("chat-fallback-message", {
+                    to: friendId,
+                    message: localMsg
+                });
+                toast.success(`File "${file.name}" sent!`);
+            } else {
+                toast.error("Offline. Message queued locally.");
+            }
             return;
         }
 
@@ -689,6 +773,7 @@ export const useChatStore = create((set, get) => ({
             receiverId: friendId,
             text: messageData.text,
             image: messageData.image,
+            status: "sending",
             createdAt
         };
 
@@ -696,51 +781,68 @@ export const useChatStore = create((set, get) => ({
         await saveLocalMessage(localMsg);
         set({ messages: [...messages, localMsg] });
 
-        // Send via P2P if active, otherwise fallback to socket.io
+        const sendSocketFallback = async () => {
+            const socket = useAuthStore.getState().socket;
+            if (!socket) return;
+
+            try {
+                if (!selectedUser.publicKeyJWK) {
+                    console.warn("Recipient has no E2EE public key. Sending plaintext fallback.");
+                    socket.emit("chat-fallback-message", {
+                        to: friendId,
+                        message: localMsg
+                    });
+                    return;
+                }
+
+                const myKeypair = await getLocalKeypair(myId);
+                const authUser = useAuthStore.getState().authUser;
+                const senderPublicKeyJWK = myKeypair?.publicKeyJWK || authUser?.publicKeyJWK;
+
+                if (!myKeypair) {
+                    console.error("Local private key missing. Sending plaintext fallback.");
+                    socket.emit("chat-fallback-message", {
+                        to: friendId,
+                        message: localMsg
+                    });
+                    return;
+                }
+
+                const remotePub = await importPublicKey(selectedUser.publicKeyJWK);
+                const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
+                const encrypted = await encryptPayload(localMsg, sharedKey);
+
+                socket.emit("chat-fallback-message", {
+                    to: friendId,
+                    message: {
+                        isEncrypted: true,
+                        iv: encrypted.iv,
+                        ciphertext: encrypted.ciphertext,
+                        senderId: myId,
+                        senderPublicKeyJWK
+                    }
+                });
+            } catch (e) {
+                console.error("Failed to encrypt fallback message. Sending plaintext fallback:", e);
+                socket.emit("chat-fallback-message", {
+                    to: friendId,
+                    message: localMsg
+                });
+            }
+        };
+
+        // Use the socket path for reliable delivery, while keeping WebRTC for live sync.
+        sendSocketFallback();
+
         const dc = dataChannels[friendId];
         if (dc && dc.readyState === "open") {
-            dc.send(JSON.stringify({
-                type: "chat-message",
-                message: localMsg
-            }));
-        } else {
-            const socket = useAuthStore.getState().socket;
-            if (socket && socket.connected) {
-                // E2EE fallback message encryption
-                (async () => {
-                    try {
-                        if (!selectedUser.publicKeyJWK) {
-                            console.warn("Recipient has no E2EE public key. Sending plaintext fallback.");
-                            socket.emit("chat-fallback-message", {
-                                to: friendId,
-                                message: localMsg
-                            });
-                            return;
-                        }
-                        
-                        const myKeypair = await getLocalKeypair(myId);
-                        if (!myKeypair) {
-                            console.error("Local private key missing. Cannot encrypt.");
-                            return;
-                        }
-
-                        const remotePub = await importPublicKey(selectedUser.publicKeyJWK);
-                        const sharedKey = await deriveSharedKey(myKeypair.privateKey, remotePub);
-                        const encrypted = await encryptPayload(localMsg, sharedKey);
-
-                        socket.emit("chat-fallback-message", {
-                            to: friendId,
-                            message: {
-                                isEncrypted: true,
-                                iv: encrypted.iv,
-                                ciphertext: encrypted.ciphertext,
-                                senderId: myId
-                            }
-                        });
-                    } catch (e) {
-                        console.error("Failed to encrypt fallback message:", e);
-                    }
-                })();
+            try {
+                dc.send(JSON.stringify({
+                    type: "chat-message",
+                    message: localMsg
+                }));
+            } catch (e) {
+                console.error("Error sending P2P chat message:", e);
             }
         }
     },
@@ -774,6 +876,30 @@ export const useChatStore = create((set, get) => ({
         }
     },
 
+    clearChatHistory: async (friendId) => {
+        const myId = useAuthStore.getState().authUser?._id;
+        if (!myId || !friendId) return;
+
+        try {
+            const { deleteLocalMessagesForChat } = await import("../lib/db.js");
+            await deleteLocalMessagesForChat(myId, friendId);
+
+            const { selectedUser } = get();
+            if (selectedUser && selectedUser._id === friendId) {
+                set({ messages: [] });
+            }
+
+            const socket = useAuthStore.getState().socket;
+            if (socket && socket.connected) {
+                socket.emit("clear-chat-history", { to: friendId });
+            }
+            toast.success("Chat history deleted");
+        } catch (err) {
+            console.error("Failed to clear chat history:", err);
+            toast.error("Failed to clear chat history");
+        }
+    },
+
     handleTyping: (receiverId) => {
         const socket = useAuthStore.getState().socket;
         if (socket) socket.emit("typing", { receiverId });
@@ -788,6 +914,9 @@ export const useChatStore = create((set, get) => ({
         const socket = useAuthStore.getState().socket;
         if (!socket) return;
 
+        socket.off("typing");
+        socket.off("stop typing");
+
         socket.on("typing", ({ senderId }) => {
             const { selectedUser } = get();
             if (selectedUser && senderId === selectedUser._id) {
@@ -801,56 +930,6 @@ export const useChatStore = create((set, get) => ({
                 set({ isTyping: false });
             }
         });
-
-        socket.on("offline-messages-deliver", async (offlineMsgs) => {
-            if (!Array.isArray(offlineMsgs) || offlineMsgs.length === 0) return;
-
-            const acknowledgedIds = [];
-            const { selectedUser } = get();
-            const myId = useAuthStore.getState().authUser?._id;
-
-            for (const item of offlineMsgs) {
-                let msg = item.messageData;
-                acknowledgedIds.push(item._id);
-
-                // Decrypt if it is an E2EE package
-                if (msg && msg.isEncrypted) {
-                    try {
-                        const myKeypair = await getLocalKeypair(myId);
-                        const senderUser = get().users.find(u => u._id === item.senderId);
-                        if (myKeypair && senderUser && senderUser.publicKeyJWK) {
-                            const senderPub = await importPublicKey(senderUser.publicKeyJWK);
-                            const sharedKey = await deriveSharedKey(myKeypair.privateKey, senderPub);
-                            msg = await decryptPayload(msg.iv, msg.ciphertext, sharedKey);
-                        } else {
-                            console.error("Missing keys to decrypt offline message");
-                            continue;
-                        }
-                    } catch (decErr) {
-                        console.error("Failed to decrypt offline message:", decErr);
-                        continue;
-                    }
-                }
-
-                await saveLocalMessage(msg);
-
-                if (selectedUser && selectedUser._id === item.senderId) {
-                    const currentMsgs = get().messages;
-                    if (!currentMsgs.some(m => m._id === msg._id)) {
-                        const processedMsg = (msg.fileBlob && msg.fileType && msg.fileType.startsWith("image/"))
-                            ? { ...msg, image: URL.createObjectURL(msg.fileBlob) }
-                            : msg;
-                        set({ messages: [...currentMsgs, processedMsg] });
-                    }
-                } else {
-                    playMessageSound();
-                }
-            }
-
-            if (acknowledgedIds.length > 0) {
-                socket.emit("acknowledge-offline-messages", acknowledgedIds);
-            }
-        });
     },
 
     unSubscribeToMessages: () => {
@@ -858,9 +937,9 @@ export const useChatStore = create((set, get) => ({
         if (socket) {
             socket.off("typing");
             socket.off("stop typing");
-            socket.off("offline-messages-deliver");
         }
     },
+
 
     handleChatSignal: async ({ from, signal }) => {
         const socket = useAuthStore.getState().socket;
@@ -883,23 +962,29 @@ export const useChatStore = create((set, get) => ({
             pc.onconnectionstatechange = () => {
                 if (pc.connectionState === "connected") {
                     set({ p2pStatus: "connected" });
+                    p2pRetryCounts[from] = 0;
                 } else if (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed") {
                     set({ p2pStatus: "offline" });
                     delete peerConnections[from];
                     delete dataChannels[from];
 
-                    // Auto-reconnect if the user is still online and we are still viewing their chat
+                    const retries = (p2pRetryCounts[from] || 0) + 1;
+                    p2pRetryCounts[from] = retries;
+
+                    // Auto-reconnect up to 2 attempts if user is still online and we are still viewing their chat
                     const onlineUsers = useAuthStore.getState().onlineUsers;
                     const isFriendOnline = onlineUsers.includes(from);
                     const selectedUser = get().selectedUser;
                     
-                    if (isFriendOnline && selectedUser && selectedUser._id === from) {
-                        console.log(`Attempting P2P reconnection with ${from}...`);
+                    if (retries <= 2 && isFriendOnline && selectedUser && selectedUser._id === from) {
+                        console.log(`Attempting P2P reconnection with ${from} (Attempt ${retries}/2)...`);
                         setTimeout(() => {
                             if (get().selectedUser?._id === from) {
                                 get().connectToPeer(from);
                             }
-                        }, 3000);
+                        }, 4000);
+                    } else {
+                        console.log(`P2P WebRTC failed or reached max retries for ${from}. Utilizing Socket fallback.`);
                     }
                 }
             };
@@ -973,7 +1058,113 @@ export const useChatStore = create((set, get) => ({
         }
     },
 
-    startCall: async (user, type) => {
+    startGroupCall: async (group, type) => {
+        if (get().callState !== "idle") {
+            toast.error("You are already in a call.");
+            return;
+        }
+
+        const socket = useAuthStore.getState().socket;
+        const myId = useAuthStore.getState().authUser?._id;
+        const onlineUsers = useAuthStore.getState().onlineUsers;
+
+        if (!socket || !myId || !group?.members) return;
+
+        const onlineMembers = group.members.filter(m =>
+            m._id !== myId && onlineUsers.includes(m._id)
+        );
+
+        if (onlineMembers.length === 0) {
+            toast.error("No online members to call");
+            return;
+        }
+
+        set({
+            callState: "ringing",
+            callType: type,
+            activeCallUser: { _id: group._id, fullName: group.name, profilePic: group.groupPic },
+            callGroupId: group._id,
+            isGroupCall: true,
+            groupCallMembers: onlineMembers,
+            groupCallRemoteStreams: [],
+            isMuted: false,
+            isCameraOff: false,
+            isRemoteCameraOff: false,
+        });
+
+        startDialTone();
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: type === "video"
+            });
+            set({ localStream: stream });
+
+            const connections = {};
+
+            const createPeerForMember = async (member) => {
+                const pc = new RTCPeerConnection(peerConfiguration);
+                connections[member._id] = pc;
+
+                stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        socket.emit("webrtc-signal", {
+                            to: member._id,
+                            signal: { type: "call-candidate", candidate: event.candidate, groupId: group._id }
+                        });
+                    }
+                };
+
+                pc.ontrack = (event) => {
+                    const current = get().groupCallRemoteStreams;
+                    if (!current.some(s => s.memberId === member._id)) {
+                        set({
+                            groupCallRemoteStreams: [
+                                ...current,
+                                { memberId: member._id, stream: event.streams[0], user: member }
+                            ]
+                        });
+                    }
+                };
+
+                pc.onconnectionstatechange = () => {
+                    if (pc.connectionState === "connected") {
+                        set({ callState: "connected" });
+                    } else if (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed") {
+                        const conns = get().groupCallConnections;
+                        if (conns[member._id]) {
+                            delete conns[member._id];
+                            set({ groupCallConnections: { ...conns } });
+                        }
+                        const remaining = Object.keys(get().groupCallConnections).length;
+                        if (remaining === 0) {
+                            get().endCall();
+                        }
+                    }
+                };
+
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+
+                socket.emit("webrtc-signal", {
+                    to: member._id,
+                    signal: { type: "call-offer", sdp: offer, callType: type, groupId: group._id }
+                });
+            };
+
+            await Promise.all(onlineMembers.map(createPeerForMember));
+            set({ groupCallConnections: connections, callConnection: null });
+        } catch (err) {
+            console.error("Failed to start group call:", err);
+            toast.error("Failed to access camera or microphone.");
+            get().endCall();
+        }
+    },
+
+    startCall: async (user, type, groupId = null) => {
         if (get().callState !== "idle") {
             toast.error("You are already in a call.");
             return;
@@ -1008,7 +1199,7 @@ export const useChatStore = create((set, get) => ({
             // Signal offline server queue
             socket.emit("webrtc-signal", {
                 to: user._id,
-                signal: { type: "call-offer", callType: type }
+                signal: { type: "call-offer", callType: type, groupId }
             });
             return;
         }
@@ -1017,6 +1208,7 @@ export const useChatStore = create((set, get) => ({
             callState: "ringing",
             callType: type,
             activeCallUser: user,
+            callGroupId: groupId,
             isMuted: false,
             isCameraOff: false,
             isRemoteCameraOff: false
@@ -1054,7 +1246,7 @@ export const useChatStore = create((set, get) => ({
                 if (event.candidate) {
                     socket.emit("webrtc-signal", {
                         to: user._id,
-                        signal: { type: "call-candidate", candidate: event.candidate }
+                        signal: { type: "call-candidate", candidate: event.candidate, groupId }
                     });
                 }
             };
@@ -1074,7 +1266,7 @@ export const useChatStore = create((set, get) => ({
 
             socket.emit("webrtc-signal", {
                 to: user._id,
-                signal: { type: "call-offer", sdp: offer, callType: type }
+                signal: { type: "call-offer", sdp: offer, callType: type, groupId }
             });
 
         } catch (err) {
@@ -1085,14 +1277,13 @@ export const useChatStore = create((set, get) => ({
     },
 
     acceptCall: async () => {
-        const { callState, callType, activeCallUser, callOfferSdp } = get();
+        const { callState, callType, activeCallUser, callOfferSdp, callGroupId, isGroupCall } = get();
         if (callState !== "incoming" || !activeCallUser) return;
 
         const socket = useAuthStore.getState().socket;
         if (!socket) return;
 
         stopTone();
-        set({ callState: "connected" });
 
         try {
             const constraints = {
@@ -1115,27 +1306,56 @@ export const useChatStore = create((set, get) => ({
             }
             set({ localStream: stream });
 
+            const callerId = activeCallUser._id;
+
+            if (isGroupCall) {
+                set({ callState: "connected", groupCallMembers: [activeCallUser] });
+            } else {
+                set({ callState: "connected" });
+            }
+
             const pc = new RTCPeerConnection(peerConfiguration);
-            set({ callConnection: pc });
 
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
             pc.onicecandidate = (event) => {
                 if (event.candidate) {
                     socket.emit("webrtc-signal", {
-                        to: activeCallUser._id,
-                        signal: { type: "call-candidate", candidate: event.candidate }
+                        to: callerId,
+                        signal: { type: "call-candidate", candidate: event.candidate, groupId: callGroupId }
                     });
                 }
             };
 
             pc.ontrack = (event) => {
-                set({ remoteStream: event.streams[0] });
+                if (isGroupCall) {
+                    const current = get().groupCallRemoteStreams;
+                    if (!current.some(s => s.memberId === callerId)) {
+                        set({
+                            groupCallRemoteStreams: [
+                                ...current,
+                                { memberId: callerId, stream: event.streams[0], user: activeCallUser }
+                            ]
+                        });
+                    }
+                } else {
+                    set({ remoteStream: event.streams[0] });
+                }
             };
 
             pc.onconnectionstatechange = () => {
                 if (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed") {
-                    get().endCall();
+                    if (isGroupCall) {
+                        const conns = { ...get().groupCallConnections };
+                        delete conns[callerId];
+                        set({ groupCallConnections: conns });
+                        const remaining = Object.keys(get().groupCallConnections).length;
+                        if (remaining === 0 && Object.keys(conns).length === 0) {
+                            get().endCall();
+                        }
+                    } else {
+                        get().endCall();
+                    }
                 }
             };
 
@@ -1156,9 +1376,15 @@ export const useChatStore = create((set, get) => ({
             await pc.setLocalDescription(answer);
 
             socket.emit("webrtc-signal", {
-                to: activeCallUser._id,
-                signal: { type: "call-answer", sdp: answer }
+                to: callerId,
+                signal: { type: "call-answer", sdp: answer, groupId: callGroupId }
             });
+
+            if (isGroupCall) {
+                set({ groupCallConnections: { [callerId]: pc }, callConnection: null });
+            } else {
+                set({ callConnection: pc });
+            }
 
         } catch (err) {
             console.error("Error accepting call:", err);
@@ -1168,15 +1394,22 @@ export const useChatStore = create((set, get) => ({
     },
 
     rejectCall: () => {
-        const { activeCallUser } = get();
+        const { activeCallUser, callGroupId, isGroupCall, groupCallMembers } = get();
         stopTone();
 
-        if (activeCallUser) {
-            const socket = useAuthStore.getState().socket;
-            if (socket) {
+        const socket = useAuthStore.getState().socket;
+        if (socket) {
+            if (isGroupCall) {
+                groupCallMembers.forEach(member => {
+                    socket.emit("webrtc-signal", {
+                        to: member._id,
+                        signal: { type: "call-rejected", groupId: callGroupId }
+                    });
+                });
+            } else if (activeCallUser) {
                 socket.emit("webrtc-signal", {
                     to: activeCallUser._id,
-                    signal: { type: "call-rejected" }
+                    signal: { type: "call-rejected", groupId: callGroupId }
                 });
             }
         }
@@ -1185,27 +1418,36 @@ export const useChatStore = create((set, get) => ({
     },
 
     rejectWithBusyMessage: async () => {
-        const { activeCallUser } = get();
+        const { activeCallUser, isGroupCall } = get();
         if (!activeCallUser) return;
         
         get().rejectCall();
 
-        set({ selectedUser: activeCallUser });
+        if (!isGroupCall) {
+            set({ selectedUser: activeCallUser });
 
-        const messageText = "I'm busy right now, I'll call you later.";
-        await get().sendMessage({ text: messageText });
+            const messageText = "I'm busy right now, I'll call you later.";
+            await get().sendMessage({ text: messageText });
+        }
     },
 
     endCall: () => {
-        const { activeCallUser } = get();
+        const { activeCallUser, groupCallMembers, isGroupCall, callGroupId } = get();
         stopTone();
 
-        if (activeCallUser) {
-            const socket = useAuthStore.getState().socket;
-            if (socket) {
+        const socket = useAuthStore.getState().socket;
+        if (socket) {
+            if (isGroupCall) {
+                groupCallMembers.forEach(member => {
+                    socket.emit("webrtc-signal", {
+                        to: member._id,
+                        signal: { type: "call-hangup", groupId: callGroupId }
+                    });
+                });
+            } else if (activeCallUser) {
                 socket.emit("webrtc-signal", {
                     to: activeCallUser._id,
-                    signal: { type: "call-hangup" }
+                    signal: { type: "call-hangup", groupId: callGroupId }
                 });
             }
         }
@@ -1226,7 +1468,7 @@ export const useChatStore = create((set, get) => ({
             screenAudioMix = null;
         }
 
-        const { localStream, callConnection, screenStream } = get();
+        const { localStream, callConnection, screenStream, groupCallConnections, groupCallRemoteStreams } = get();
 
         if (localStream) {
             localStream.getTracks().forEach(track => track.stop());
@@ -1242,6 +1484,14 @@ export const useChatStore = create((set, get) => ({
             } catch (e) {}
         }
 
+        Object.values(groupCallConnections || {}).forEach(pc => {
+            try { pc.close(); } catch (e) {}
+        });
+
+        groupCallRemoteStreams?.forEach(({ stream }) => {
+            stream?.getTracks().forEach(t => t.stop());
+        });
+
         set({
             callState: "idle",
             callType: null,
@@ -1253,9 +1503,14 @@ export const useChatStore = create((set, get) => ({
             isRemoteCameraOff: false,
             isRemoteScreenSharing: false,
             callConnection: null,
+            callGroupId: null,
             callOfferSdp: null,
             isScreenSharing: false,
-            screenStream: null
+            screenStream: null,
+            isGroupCall: false,
+            groupCallMembers: [],
+            groupCallRemoteStreams: [],
+            groupCallConnections: {}
         });
     },
 
@@ -1270,7 +1525,7 @@ export const useChatStore = create((set, get) => ({
     },
 
     toggleCamera: () => {
-        const { localStream, isCameraOff, activeCallUser } = get();
+        const { localStream, isCameraOff, activeCallUser, isGroupCall, groupCallMembers } = get();
         if (localStream) {
             localStream.getVideoTracks().forEach(track => {
                 track.enabled = isCameraOff;
@@ -1278,28 +1533,48 @@ export const useChatStore = create((set, get) => ({
             const newIsCameraOff = !isCameraOff;
             set({ isCameraOff: newIsCameraOff });
 
-            // Notify the remote peer of the camera status
             const socket = useAuthStore.getState().socket;
-            if (socket && activeCallUser) {
-                socket.emit("webrtc-signal", {
-                    to: activeCallUser._id,
-                    signal: { type: "call-camera-toggle", isCameraOff: newIsCameraOff }
-                });
+            if (socket) {
+                if (isGroupCall) {
+                    groupCallMembers.forEach(member => {
+                        socket.emit("webrtc-signal", {
+                            to: member._id,
+                            signal: { type: "call-camera-toggle", isCameraOff: newIsCameraOff, groupId: get().callGroupId }
+                        });
+                    });
+                } else if (activeCallUser) {
+                    socket.emit("webrtc-signal", {
+                        to: activeCallUser._id,
+                        signal: { type: "call-camera-toggle", isCameraOff: newIsCameraOff }
+                    });
+                }
             }
         }
     },
 
     toggleScreenShare: async () => {
-        const { isScreenSharing, localStream, screenStream, callConnection, activeCallUser } = get();
+        const { isScreenSharing, localStream, screenStream, callConnection, activeCallUser, isGroupCall, groupCallMembers, groupCallConnections } = get();
         const socket = useAuthStore.getState().socket;
+
+        const notifyGroup = (isSharing) => {
+            if (isGroupCall) {
+                groupCallMembers.forEach(member => {
+                    socket?.emit("webrtc-signal", {
+                        to: member._id,
+                        signal: { type: "call-screen-share-toggle", isScreenSharing: isSharing, groupId: get().callGroupId }
+                    });
+                });
+            }
+        };
 
         if (isScreenSharing) {
             if (screenStream) {
                 screenStream.getTracks().forEach(track => track.stop());
             }
 
-            if (localStream && callConnection) {
-                const senders = callConnection.getSenders();
+            const restoreTracks = async (pc) => {
+                if (!localStream || !pc) return;
+                const senders = pc.getSenders();
                 const videoSender = senders.find(s => s.track && s.track.kind === "video");
                 const cameraTrack = localStream.getVideoTracks()[0];
                 if (videoSender && cameraTrack) {
@@ -1310,7 +1585,6 @@ export const useChatStore = create((set, get) => ({
                     }
                 }
 
-                // Restore microphone track if we had mixed audio
                 if (screenAudioMix) {
                     try {
                         const audioSender = senders.find(s => s.track && s.track.kind === "audio");
@@ -1321,8 +1595,6 @@ export const useChatStore = create((set, get) => ({
                     } catch (err) {
                         console.error("Error restoring microphone track:", err);
                     }
-                    
-                    // Clean up AudioContext nodes
                     try {
                         screenAudioMix.micSource.disconnect();
                         screenAudioMix.screenSource.disconnect();
@@ -1330,14 +1602,23 @@ export const useChatStore = create((set, get) => ({
                     } catch (e) {}
                     screenAudioMix = null;
                 }
+            };
+
+            if (isGroupCall) {
+                await Promise.all(Object.values(groupCallConnections).map(restoreTracks));
+            } else if (localStream && callConnection) {
+                await restoreTracks(callConnection);
             }
 
-            // Notify the remote peer
-            if (socket && activeCallUser) {
-                socket.emit("webrtc-signal", {
-                    to: activeCallUser._id,
-                    signal: { type: "call-screen-share-toggle", isScreenSharing: false }
-                });
+            if (socket && (!isGroupCall || true)) {
+                if (isGroupCall) {
+                    notifyGroup(false);
+                } else if (activeCallUser) {
+                    socket.emit("webrtc-signal", {
+                        to: activeCallUser._id,
+                        signal: { type: "call-screen-share-toggle", isScreenSharing: false }
+                    });
+                }
             }
 
             set({
@@ -1360,16 +1641,14 @@ export const useChatStore = create((set, get) => ({
                 const screenTrack = stream.getVideoTracks()[0];
                 const screenAudioTrack = stream.getAudioTracks()[0];
 
-                if (callConnection) {
-                    const senders = callConnection.getSenders();
-                    
-                    // Replace video track
+                const replaceTrackOnConn = async (pc) => {
+                    if (!pc) return;
+                    const senders = pc.getSenders();
                     const videoSender = senders.find(s => s.track && s.track.kind === "video");
                     if (videoSender) {
                         await videoSender.replaceTrack(screenTrack);
                     }
 
-                    // Mix screen audio with microphone audio if available
                     if (screenAudioTrack && localStream) {
                         const micTrack = localStream.getAudioTracks()[0];
                         if (micTrack) {
@@ -1389,28 +1668,34 @@ export const useChatStore = create((set, get) => ({
                                 }
 
                                 screenAudioMix = {
-                                    ctx,
-                                    micSource,
-                                    screenSource,
-                                    dest
+                                    ctx, micSource, screenSource, dest
                                 };
                             } catch (e) {
                                 console.error("Error mixing screen audio:", e);
                             }
                         }
                     }
+                };
+
+                if (isGroupCall) {
+                    await Promise.all(Object.values(groupCallConnections).map(replaceTrackOnConn));
+                } else if (callConnection) {
+                    await replaceTrackOnConn(callConnection);
                 }
 
                 screenTrack.onended = () => {
                     get().stopScreenShareInternal();
                 };
 
-                // Notify the remote peer
-                if (socket && activeCallUser) {
-                    socket.emit("webrtc-signal", {
-                        to: activeCallUser._id,
-                        signal: { type: "call-screen-share-toggle", isScreenSharing: true }
-                    });
+                if (socket) {
+                    if (isGroupCall) {
+                        notifyGroup(true);
+                    } else if (activeCallUser) {
+                        socket.emit("webrtc-signal", {
+                            to: activeCallUser._id,
+                            signal: { type: "call-screen-share-toggle", isScreenSharing: true }
+                        });
+                    }
                 }
 
                 set({
@@ -1427,15 +1712,16 @@ export const useChatStore = create((set, get) => ({
     },
 
     stopScreenShareInternal: async () => {
-        const { isScreenSharing, localStream, screenStream, callConnection, activeCallUser } = get();
+        const { isScreenSharing, localStream, screenStream, callConnection, activeCallUser, isGroupCall, groupCallConnections } = get();
         if (!isScreenSharing) return;
 
         if (screenStream) {
             screenStream.getTracks().forEach(track => track.stop());
         }
 
-        if (localStream && callConnection) {
-            const senders = callConnection.getSenders();
+        const restoreTracks = async (pc) => {
+            if (!localStream || !pc) return;
+            const senders = pc.getSenders();
             const videoSender = senders.find(s => s.track && s.track.kind === "video");
             const cameraTrack = localStream.getVideoTracks()[0];
             if (videoSender && cameraTrack) {
@@ -1444,7 +1730,6 @@ export const useChatStore = create((set, get) => ({
                 } catch (err) {}
             }
 
-            // Restore microphone track if we had mixed audio
             if (screenAudioMix) {
                 try {
                     const audioSender = senders.find(s => s.track && s.track.kind === "audio");
@@ -1455,8 +1740,6 @@ export const useChatStore = create((set, get) => ({
                 } catch (err) {
                     console.error("Error restoring microphone track:", err);
                 }
-                
-                // Clean up AudioContext nodes
                 try {
                     screenAudioMix.micSource.disconnect();
                     screenAudioMix.screenSource.disconnect();
@@ -1464,15 +1747,29 @@ export const useChatStore = create((set, get) => ({
                 } catch (e) {}
                 screenAudioMix = null;
             }
+        };
+
+        if (isGroupCall) {
+            await Promise.all(Object.values(groupCallConnections).map(restoreTracks));
+        } else if (localStream && callConnection) {
+            await restoreTracks(callConnection);
         }
 
-        // Notify the remote peer
         const socket = useAuthStore.getState().socket;
-        if (socket && activeCallUser) {
-            socket.emit("webrtc-signal", {
-                to: activeCallUser._id,
-                signal: { type: "call-screen-share-toggle", isScreenSharing: false }
-            });
+        if (socket) {
+            if (isGroupCall) {
+                get().groupCallMembers.forEach(member => {
+                    socket.emit("webrtc-signal", {
+                        to: member._id,
+                        signal: { type: "call-screen-share-toggle", isScreenSharing: false, groupId: get().callGroupId }
+                    });
+                });
+            } else if (activeCallUser) {
+                socket.emit("webrtc-signal", {
+                    to: activeCallUser._id,
+                    signal: { type: "call-screen-share-toggle", isScreenSharing: false }
+                });
+            }
         }
 
         set({
@@ -1488,7 +1785,56 @@ export const useChatStore = create((set, get) => ({
         const { callState, callConnection } = get();
 
         if (signal.type === "call-offer") {
+            const { callGroupId, isGroupCall } = get();
+
             if (callState !== "idle") {
+                if (signal.groupId && callGroupId === signal.groupId && isGroupCall) {
+                    // This is another member joining the same group call - create connection
+                    const myId = useAuthStore.getState().authUser?._id;
+                    const localStream = get().localStream;
+                    const pc = new RTCPeerConnection(peerConfiguration);
+
+                    if (localStream) {
+                        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+                    }
+
+                    pc.onicecandidate = (event) => {
+                        if (event.candidate) {
+                            socket.emit("webrtc-signal", {
+                                to: from,
+                                signal: { type: "call-candidate", candidate: event.candidate, groupId: signal.groupId }
+                            });
+                        }
+                    };
+
+                    pc.ontrack = (event) => {
+                        const current = get().groupCallRemoteStreams;
+                        const member = get().groupCallMembers.find(m => m._id === from) || { _id: from, fullName: "Unknown" };
+                        if (!current.some(s => s.memberId === from)) {
+                            set({
+                                groupCallRemoteStreams: [
+                                    ...current,
+                                    { memberId: from, stream: event.streams[0], user: member }
+                                ]
+                            });
+                        }
+                    };
+
+                    await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+
+                    socket.emit("webrtc-signal", {
+                        to: from,
+                        signal: { type: "call-answer", sdp: answer, groupId: signal.groupId }
+                    });
+
+                    const conns = { ...get().groupCallConnections, [from]: pc };
+                    set({ groupCallConnections: conns });
+                    return;
+                }
+
                 socket.emit("webrtc-signal", {
                     to: from,
                     signal: { type: "call-rejected", reason: "busy" }
@@ -1498,19 +1844,36 @@ export const useChatStore = create((set, get) => ({
 
             const chatUsers = get().users;
             const senderUser = chatUsers.find(u => u._id === from);
-            
-            set({
-                callState: "incoming",
-                callType: signal.callType,
-                activeCallUser: senderUser || { _id: from, fullName: "Unknown User" },
-                callOfferSdp: signal.sdp
-            });
+
+            if (signal.groupId) {
+                set({
+                    callState: "incoming",
+                    callType: signal.callType,
+                    activeCallUser: senderUser || { _id: from, fullName: "Unknown User" },
+                    callOfferSdp: signal.sdp,
+                    callGroupId: signal.groupId,
+                    isGroupCall: true,
+                    groupCallMembers: [senderUser || { _id: from, fullName: "Unknown User" }],
+                    groupCallRemoteStreams: [],
+                });
+            } else {
+                set({
+                    callState: "incoming",
+                    callType: signal.callType,
+                    activeCallUser: senderUser || { _id: from, fullName: "Unknown User" },
+                    callOfferSdp: signal.sdp,
+                    isGroupCall: false,
+                });
+            }
 
             startRingTone();
         }
 
         else if (signal.type === "call-answer") {
-            const pc = callConnection;
+            const { isGroupCall, callGroupId, groupCallConnections } = get();
+            const pc = isGroupCall && signal.groupId === callGroupId
+                ? groupCallConnections[from]
+                : callConnection;
             if (pc) {
                 try {
                     await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
@@ -1532,7 +1895,10 @@ export const useChatStore = create((set, get) => ({
         }
 
         else if (signal.type === "call-candidate") {
-            const pc = callConnection;
+            const { isGroupCall, callGroupId, groupCallConnections } = get();
+            const pc = isGroupCall && signal.groupId === callGroupId
+                ? (groupCallConnections ? groupCallConnections[from] : null)
+                : callConnection;
             if (pc && pc.remoteDescription && pc.remoteDescription.type) {
                 try {
                     await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
@@ -1545,10 +1911,33 @@ export const useChatStore = create((set, get) => ({
         }
 
         else if (signal.type === "call-rejected") {
+            const { isGroupCall, callGroupId, groupCallMembers, groupCallConnections } = get();
+
+            if (isGroupCall && signal.groupId === callGroupId) {
+                const rejectedId = from;
+                const conns = { ...groupCallConnections };
+                if (conns[rejectedId]) {
+                    try { conns[rejectedId].close(); } catch (e) {}
+                    delete conns[rejectedId];
+                }
+                const remainingMembers = groupCallMembers.filter(m => m._id !== rejectedId);
+                const remoteStreams = get().groupCallRemoteStreams.filter(s => s.memberId !== rejectedId);
+
+                set({
+                    groupCallConnections: conns,
+                    groupCallMembers: remainingMembers,
+                    groupCallRemoteStreams: remoteStreams,
+                });
+
+                if (remainingMembers.length === 0) {
+                    get().cleanupCallState();
+                }
+                return;
+            }
+
             stopTone();
             const caller = get().activeCallUser;
             if (caller) {
-                // Add local missed call message
                 const myId = useAuthStore.getState().authUser?._id;
                 const messageId = "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
                 const localMsg = {
@@ -1575,17 +1964,53 @@ export const useChatStore = create((set, get) => ({
         }
 
         else if (signal.type === "call-hangup") {
+            const { isGroupCall, callGroupId, groupCallMembers, groupCallConnections } = get();
+
+            if (isGroupCall && signal.groupId === callGroupId) {
+                const hangupperId = from;
+                const conns = { ...groupCallConnections };
+                if (conns[hangupperId]) {
+                    try { conns[hangupperId].close(); } catch (e) {}
+                    delete conns[hangupperId];
+                }
+                const remainingMembers = groupCallMembers.filter(m => m._id !== hangupperId);
+                const remoteStreams = get().groupCallRemoteStreams.filter(s => s.memberId !== hangupperId);
+
+                set({
+                    groupCallConnections: conns,
+                    groupCallMembers: remainingMembers,
+                    groupCallRemoteStreams: remoteStreams,
+                });
+
+                if (remainingMembers.length === 0) {
+                    stopTone();
+                    toast.error("Group call ended.");
+                    get().cleanupCallState();
+                }
+                return;
+            }
+
             stopTone();
             toast.error("Call ended.");
             get().cleanupCallState();
         }
 
         else if (signal.type === "call-camera-toggle") {
-            set({ isRemoteCameraOff: signal.isCameraOff });
+            const { isGroupCall, callGroupId } = get();
+            if (isGroupCall && signal.groupId === callGroupId) {
+                set({ isRemoteCameraOff: signal.isCameraOff });
+            } else if (!isGroupCall) {
+                set({ isRemoteCameraOff: signal.isCameraOff });
+            }
         }
 
         else if (signal.type === "call-screen-share-toggle") {
-            set({ isRemoteScreenSharing: signal.isScreenSharing });
+            const { isGroupCall, callGroupId } = get();
+            if (isGroupCall && signal.groupId === callGroupId) {
+                set({ isRemoteScreenSharing: signal.isScreenSharing });
+            } else if (!isGroupCall) {
+                set({ isRemoteScreenSharing: signal.isScreenSharing });
+            }
         }
     },
 
@@ -1623,5 +2048,13 @@ export const useChatStore = create((set, get) => ({
         toast.success("File transfer stopped.");
     },
 
-    setSelectedUser: (selectedUser) => set({ selectedUser }),
+    setSelectedUser: (selectedUser) => {
+        if (selectedUser?._id) {
+            sessionStorage.setItem("zync_selected_user", selectedUser._id);
+            sessionStorage.removeItem("zync_selected_group");
+        } else {
+            sessionStorage.removeItem("zync_selected_user");
+        }
+        set({ selectedUser });
+    },
 }));
