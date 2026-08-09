@@ -96,22 +96,21 @@ const SearchModal = ({ isOpen, onClose }) => {
       
       <div className="relative pt-20 px-4">
         <div className="max-w-md mx-auto relative">
-          <button 
-            onClick={onClose}
-            className="absolute -top-2 right-0 btn btn-sm btn-ghost btn-circle"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          
           <input
             ref={inputRef}
             type="text"
             placeholder="Search users..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="input input-lg w-full pl-12 bg-base-100 border-base-300 shadow-xl text-lg"
+            className="input input-lg w-full pl-12 pr-12 bg-base-100 border-base-300 shadow-xl text-lg"
           />
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400 pointer-events-none" />
+          <button 
+            onClick={onClose}
+            className="absolute right-3 top-1/2 -translate-y-1/2 btn btn-sm btn-ghost btn-circle"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {query.length >= 2 && (
